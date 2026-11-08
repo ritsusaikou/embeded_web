@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>裸机 LED 驱动实验 · 嵌入式系统课程项目站</title><meta name="description" content="不依赖任何操作系统，直接配置 IOMUXC / CCM / GPIO 三组寄存器点亮 LED0，理解「时钟—复用—方向—电平」这条最小硬件控制链。"><link rel="canonical" href="https://board.nexuslink.icu/lab/02-baremetal-led/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="裸机 LED 驱动实验 · 嵌入式系统课程项目站"><meta property="og:description" content="不依赖任何操作系统，直接配置 IOMUXC / CCM / GPIO 三组寄存器点亮 LED0，理解「时钟—复用—方向—电平」这条最小硬件控制链。"><meta property="og:url" content="https://board.nexuslink.icu/lab/02-baremetal-led/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-tvauolgf] li[data-astro-cid-tvauolgf]+li[data-astro-cid-tvauolgf]{margin-top:10px}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]{display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-2)}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]:hover{color:var(--brand)}.pager[data-astro-cid-tvauolgf]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/" aria-current="page"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-tvauolgf> <div class="container" data-astro-cid-tvauolgf> <div class="crumbs" data-astro-cid-tvauolgf> <a href="/" data-astro-cid-tvauolgf>首页</a><span data-astro-cid-tvauolgf>/</span><a href="/lab/" data-astro-cid-tvauolgf>实验日志</a><span data-astro-cid-tvauolgf>/</span> <span data-astro-cid-tvauolgf>L02</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:22em;" data-astro-cid-tvauolgf>裸机 LED 驱动实验</h1> <p data-astro-cid-tvauolgf>不依赖任何操作系统，直接配置 IOMUXC / CCM / GPIO 三组寄存器点亮 LED0，理解「时钟—复用—方向—电平」这条最小硬件控制链。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-tvauolgf> <span class="badge badge--ok" data-astro-cid-tvauolgf>第二次</span> <span class="tag" data-astro-cid-tvauolgf>裸机</span><span class="tag" data-astro-cid-tvauolgf>寄存器</span><span class="tag" data-astro-cid-tvauolgf>GPIO</span><span class="tag" data-astro-cid-tvauolgf>IOMUX</span> </div> </div> </section> <div class="container" data-astro-cid-tvauolgf> <div class="detail" data-astro-cid-tvauolgf> <article class="prose" data-astro-cid-tvauolgf> <h2 id="实验目的">实验目的</h2>
+<ol>
+<li>理解 i.MX6ULL 的启动流程与裸机程序的加载方式。</li>
+<li>掌握 IOMUXC（引脚复用）、CCM（时钟门控）、GPIO（方向与电平）三组寄存器的配置顺序。</li>
+<li>脱离操作系统，用最底层的方式让 LED0 闪烁。</li>
+</ol>
+<h2 id="实验环境">实验环境</h2>
+<ul>
+<li>开发板：i.MX6ULL，LED0 接 <strong>GPIO1_IO03</strong>，<strong>低电平点亮</strong>。</li>
+<li>工具链：<code>arm-linux-gnueabihf-gcc</code>，链接地址 <code>0x87800000</code>。</li>
+<li>烧写：<code>imxdownload</code> 把 bin 写到 TF 卡（含 IVT / DCD 头，BootROM 靠它初始化 DDR）。</li>
+</ul>
+<h2 id="原理与要点">原理与要点</h2>
+<p>上电后芯片内部 BootROM 从 TF 卡固定偏移处读取 IVT，按 DCD 完成 DDR 初始化，然后把程序搬到 DDR 的链接地址开始执行。因此裸机 bin 的<strong>链接地址必须是 DDR 中的合法地址</strong>，且需要 imxdownload 添加头部。</p>
+<p>点亮一个 GPIO 要做四件事，顺序不能反：</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>步骤</th><th>寄存器</th><th>地址</th><th>值</th><th>作用</th></tr></thead><tbody><tr><td>1. 开时钟</td><td><code>CCM_CCGR1</code></td><td><code>0x020C406C</code></td><td>bit[27:26] = <code>0b11</code></td><td>给 GPIO1 供时钟，否则写寄存器无效</td></tr><tr><td>2. 引脚复用</td><td><code>IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO03</code></td><td><code>0x020E0068</code></td><td><code>0x5</code></td><td>复用为 ALT5 = GPIO 功能</td></tr><tr><td>3. 电气属性</td><td><code>IOMUXC_SW_PAD_CTL_PAD_GPIO1_IO03</code></td><td><code>0x020E02F4</code></td><td><code>0x10B0</code></td><td>迟滞、上拉、驱动强度</td></tr><tr><td>4. 方向 + 电平</td><td><code>GPIO1_GDIR</code> / <code>GPIO1_DR</code></td><td><code>0x0209C004</code> / <code>0x0209C000</code></td><td>bit3 = 1 / 0</td><td>输出方向，输出低电平</td></tr></tbody></table>
+<h2 id="关键代码">关键代码</h2>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#F97583">#define</span><span style="color:#B392F0"> CCM_CCGR1</span><span style="color:#E1E4E8">       (</span><span style="color:#F97583">*</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">volatile</span><span style="color:#F97583"> unsigned</span><span style="color:#F97583"> int</span><span style="color:#F97583"> *</span><span style="color:#E1E4E8">)</span><span style="color:#F97583">0x</span><span style="color:#79B8FF">020C406C</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#F97583">#define</span><span style="color:#B392F0"> SW_MUX_CTL_PAD</span><span style="color:#E1E4E8">  (</span><span style="color:#F97583">*</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">volatile</span><span style="color:#F97583"> unsigned</span><span style="color:#F97583"> int</span><span style="color:#F97583"> *</span><span style="color:#E1E4E8">)</span><span style="color:#F97583">0x</span><span style="color:#79B8FF">020E0068</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#F97583">#define</span><span style="color:#B392F0"> SW_PAD_CTL_PAD</span><span style="color:#E1E4E8">  (</span><span style="color:#F97583">*</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">volatile</span><span style="color:#F97583"> unsigned</span><span style="color:#F97583"> int</span><span style="color:#F97583"> *</span><span style="color:#E1E4E8">)</span><span style="color:#F97583">0x</span><span style="color:#79B8FF">020E02F4</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#F97583">#define</span><span style="color:#B392F0"> GPIO1_GDIR</span><span style="color:#E1E4E8">      (</span><span style="color:#F97583">*</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">volatile</span><span style="color:#F97583"> unsigned</span><span style="color:#F97583"> int</span><span style="color:#F97583"> *</span><span style="color:#E1E4E8">)</span><span style="color:#F97583">0x</span><span style="color:#79B8FF">0209C004</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#F97583">#define</span><span style="color:#B392F0"> GPIO1_DR</span><span style="color:#E1E4E8">        (</span><span style="color:#F97583">*</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">volatile</span><span style="color:#F97583"> unsigned</span><span style="color:#F97583"> int</span><span style="color:#F97583"> *</span><span style="color:#E1E4E8">)</span><span style="color:#F97583">0x</span><span style="color:#79B8FF">0209C000</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F97583">static</span><span style="color:#F97583"> void</span><span style="color:#B392F0"> led_init</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">void</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#E1E4E8">{</span></span>
+<span class="line"><span style="color:#E1E4E8">    CCM_CCGR1 </span><span style="color:#F97583">|=</span><span style="color:#E1E4E8"> (</span><span style="color:#79B8FF">3</span><span style="color:#F97583"> &#x3C;&#x3C;</span><span style="color:#79B8FF"> 26</span><span style="color:#E1E4E8">);</span><span style="color:#6A737D">          /* gpio1_clk_enable */</span></span>
+<span class="line"><span style="color:#E1E4E8">    SW_MUX_CTL_PAD </span><span style="color:#F97583">=</span><span style="color:#F97583"> 0x</span><span style="color:#79B8FF">5</span><span style="color:#E1E4E8">;</span><span style="color:#6A737D">            /* ALT5 -> GPIO1_IO03 */</span></span>
+<span class="line"><span style="color:#E1E4E8">    SW_PAD_CTL_PAD </span><span style="color:#F97583">=</span><span style="color:#F97583"> 0x</span><span style="color:#79B8FF">10B0</span><span style="color:#E1E4E8">;</span><span style="color:#6A737D">         /* 上拉 + 驱动能力 */</span></span>
+<span class="line"><span style="color:#E1E4E8">    GPIO1_GDIR </span><span style="color:#F97583">|=</span><span style="color:#E1E4E8"> (</span><span style="color:#79B8FF">1</span><span style="color:#F97583"> &#x3C;&#x3C;</span><span style="color:#79B8FF"> 3</span><span style="color:#E1E4E8">);</span><span style="color:#6A737D">          /* bit3 输出 */</span></span>
+<span class="line"><span style="color:#E1E4E8">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F97583">static</span><span style="color:#F97583"> void</span><span style="color:#B392F0"> delay</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">volatile</span><span style="color:#F97583"> unsigned</span><span style="color:#F97583"> int</span><span style="color:#FFAB70"> n</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#E1E4E8">{</span></span>
+<span class="line"><span style="color:#F97583">    while</span><span style="color:#E1E4E8"> (n</span><span style="color:#F97583">--</span><span style="color:#E1E4E8">) </span><span style="color:#F97583">__asm__</span><span style="color:#F97583"> volatile</span><span style="color:#E1E4E8">(</span><span style="color:#9ECBFF">"</span><span style="color:#9ECBFF">nop</span><span style="color:#9ECBFF">"</span><span style="color:#E1E4E8">);</span></span>
+<span class="line"><span style="color:#E1E4E8">}</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F97583">int</span><span style="color:#B392F0"> main</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">void</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#E1E4E8">{</span></span>
+<span class="line"><span style="color:#B392F0">    led_init</span><span style="color:#E1E4E8">();</span></span>
+<span class="line"><span style="color:#F97583">    while</span><span style="color:#E1E4E8"> (</span><span style="color:#79B8FF">1</span><span style="color:#E1E4E8">) {</span></span>
+<span class="line"><span style="color:#E1E4E8">        GPIO1_DR </span><span style="color:#F97583">&#x26;=</span><span style="color:#F97583"> ~</span><span style="color:#E1E4E8">(</span><span style="color:#79B8FF">1</span><span style="color:#F97583"> &#x3C;&#x3C;</span><span style="color:#79B8FF"> 3</span><span style="color:#E1E4E8">);</span><span style="color:#6A737D">       /* 低电平 -> 点亮 */</span></span>
+<span class="line"><span style="color:#B392F0">        delay</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">0x</span><span style="color:#79B8FF">800000</span><span style="color:#E1E4E8">);</span></span>
+<span class="line"><span style="color:#E1E4E8">        GPIO1_DR </span><span style="color:#F97583">|=</span><span style="color:#E1E4E8"> (</span><span style="color:#79B8FF">1</span><span style="color:#F97583"> &#x3C;&#x3C;</span><span style="color:#79B8FF"> 3</span><span style="color:#E1E4E8">);</span><span style="color:#6A737D">        /* 高电平 -> 熄灭 */</span></span>
+<span class="line"><span style="color:#B392F0">        delay</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">0x</span><span style="color:#79B8FF">800000</span><span style="color:#E1E4E8">);</span></span>
+<span class="line"><span style="color:#E1E4E8">    }</span></span>
+<span class="line"><span style="color:#F97583">    return</span><span style="color:#79B8FF"> 0</span><span style="color:#E1E4E8">;</span></span>
+<span class="line"><span style="color:#E1E4E8">}</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">arm-linux-gnueabihf-gcc</span><span style="color:#79B8FF"> -g</span><span style="color:#79B8FF"> -c</span><span style="color:#9ECBFF"> led.s</span><span style="color:#79B8FF"> -o</span><span style="color:#9ECBFF"> led.o</span></span>
+<span class="line"><span style="color:#B392F0">arm-linux-gnueabihf-ld</span><span style="color:#79B8FF"> -Ttext</span><span style="color:#79B8FF"> 0x87800000</span><span style="color:#9ECBFF"> led.o</span><span style="color:#79B8FF"> -o</span><span style="color:#9ECBFF"> led.elf</span></span>
+<span class="line"><span style="color:#B392F0">arm-linux-gnueabihf-objcopy</span><span style="color:#79B8FF"> -O</span><span style="color:#9ECBFF"> binary</span><span style="color:#79B8FF"> -S</span><span style="color:#79B8FF"> -g</span><span style="color:#9ECBFF"> led.elf</span><span style="color:#9ECBFF"> led.bin</span></span>
+<span class="line"><span style="color:#B392F0">./imxdownload</span><span style="color:#9ECBFF"> led.bin</span><span style="color:#9ECBFF"> /dev/sdb</span></span></code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p>插卡上电后 LED0 以约 0.5 秒周期稳定闪烁，串口无任何输出——说明程序完全运行在裸机环境，没有任何 OS 参与。</p>
+<h2 id="问题与解决">问题与解决</h2>
+<p><strong>LED 完全无反应。</strong> 逐个寄存器回读发现 <code>CCM_CCGR1</code> 写入无效——地址写成了 <code>0x020C4068</code>（那是相邻的 <code>CCGR0</code>）。这类错误在裸机开发中最常见，因为所有外设都是裸地址。<strong>养成习惯：每配置一步，用调试器或打印回读一次寄存器值。</strong></p>
+<p><strong>链接地址不对导致程序不执行。</strong> 最初用 <code>ld</code> 默认地址，bin 烧进去后毫无反应。<code>-Ttext 0x87800000</code> 是必须的，因为 BootROM 按这个地址跳转。</p>
+<p><strong>写卡权限。</strong> Windows 下 imxdownload 需要管理员权限直接写物理磁盘；Ubuntu 下不能把卡挂载后再写，要先 <code>umount</code>。</p>
+<h2 id="小结">小结</h2>
+<p>裸机点灯是「看得见的寄存器」。它把平时被 HAL 库、驱动框架层层包住的四件事——<strong>时钟、复用、方向、电平</strong>——直接摊在眼前。后面写字符设备驱动时，<code>gpio_direction_output()</code> 背后其实还是这四步，只是被 gpiolib 封装了。做完这次实验再回头看内核的 <code>led-gpio</code> 驱动，能一一对应上。</p> </article> <aside class="side" data-astro-cid-tvauolgf> <h4 data-astro-cid-tvauolgf>实验信息</h4> <dl data-astro-cid-tvauolgf> <dt data-astro-cid-tvauolgf>序号</dt><dd data-astro-cid-tvauolgf>第 2 次</dd> <dt data-astro-cid-tvauolgf>日期</dt><dd data-astro-cid-tvauolgf>2026.09.24</dd> <dt data-astro-cid-tvauolgf>学时</dt><dd data-astro-cid-tvauolgf>4 学时</dd> <dt data-astro-cid-tvauolgf>状态</dt><dd data-astro-cid-tvauolgf>已完成</dd> </dl>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>硬件</h4> <div class="card__tags" data-astro-cid-tvauolgf> <span class="tag" data-astro-cid-tvauolgf>i.MX6ULL 开发板</span><span class="tag" data-astro-cid-tvauolgf>TF 卡</span><span class="tag" data-astro-cid-tvauolgf>LED0</span> </div>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>相关链接</h4> <ul class="side-links" data-astro-cid-tvauolgf> <li data-astro-cid-tvauolgf><a href="/docs/" data-astro-cid-tvauolgf>系统设计文档 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/source/" data-astro-cid-tvauolgf>源码与产物 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/notes/" data-astro-cid-tvauolgf>技术选型 <span data-astro-cid-tvauolgf>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-tvauolgf> <div data-astro-cid-tvauolgf> <a href="/lab/01-env/" data-astro-cid-tvauolgf>
+← 上一次 · 嵌入式 Linux 开发环境搭建与简单应用程序编写 </a> </div> <div class="pager__next" data-astro-cid-tvauolgf> <a href="/lab/03-tftp-nfs/" data-astro-cid-tvauolgf>下一次 · TFTP 与 NFS 网络环境搭建 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 

@@ -1,31 +1,49 @@
 ---
-const { pathname } = Astro.url;
-const navItems = [
-  { href: '/', label: '首页' },
-  { href: '/archive/', label: '归档' },
-  { href: '/tags/', label: '标签' },
-  { href: '/about/', label: '关于' }
-];
-const normalize = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, -1) : p);
-const current = normalize(pathname);
+import { site, nav } from '../data/site';
+
+const raw = Astro.url.pathname.replace(/\/+$/, '');
+const path = raw === '' ? '/' : raw;
+const isActive = (href: string) => {
+  const h = href.replace(/\/+$/, '');
+  if (h === '' || h === '/') return path === '/';
+  return path === h || path.startsWith(h + '/');
+};
 ---
 
-<header class="site-header">
-  <div class="inner">
-    <div class="site-title">
-      <a href="/"><span class="dot">❋</span> 轻痕</a>
+<div class="topbar">
+  <div class="container">
+    <div class="topbar__left">
+      <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span>
+      <span class="mono">kernel 4.1.15 · nginx 1.14</span>
     </div>
-    <nav class="site-nav" aria-label="主导航">
-      {
-        navItems.map((item) => (
-          <a
-            href={item.href}
-            aria-current={current === normalize(item.href) ? 'page' : undefined}
-          >
-            {item.label}
-          </a>
-        ))
-      }
+    <div class="topbar__right">
+      <a href={site.github} target="_blank" rel="noopener">GitHub 仓库 ↗</a>
+      <span class="mono">{site.course}</span>
+    </div>
+  </div>
+</div>
+
+<header class="site-header">
+  <div class="container">
+    <a class="brand" href="/">
+      <span class="brand__mark">{site.brandMark}</span>
+      <span class="brand__text">
+        <span class="brand__name">{site.brandName}</span>
+        <span class="brand__sub">{site.brandSub}</span>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="主导航">
+      {nav.map((item) => (
+        <a href={item.href} aria-current={isActive(item.href) ? 'page' : undefined}>
+          {item.label}
+        </a>
+      ))}
     </nav>
+
+    <div class="header__actions">
+      <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a>
+      <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a>
+    </div>
   </div>
 </header>

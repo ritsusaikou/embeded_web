@@ -1,0 +1,115 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>Astro 与 Vue / React 到底差在哪 · 嵌入式系统课程项目站</title><meta name="description" content="一个是「把渲染放在构建时」，一个是「把渲染放在浏览器运行时」。顺带解释为什么两者都能 npm run dev，以及 dev server 与构建产物的本质区别。"><link rel="canonical" href="https://board.nexuslink.icu/notes/03-build-vs-runtime/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="Astro 与 Vue / React 到底差在哪 · 嵌入式系统课程项目站"><meta property="og:description" content="一个是「把渲染放在构建时」，一个是「把渲染放在浏览器运行时」。顺带解释为什么两者都能 npm run dev，以及 dev server 与构建产物的本质区别。"><meta property="og:url" content="https://board.nexuslink.icu/notes/03-build-vs-runtime/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-fezs4xpw] li[data-astro-cid-fezs4xpw]+li[data-astro-cid-fezs4xpw]{margin-top:10px}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--ink-2)}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]:hover{color:var(--brand)}.pager[data-astro-cid-fezs4xpw]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/" aria-current="page"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-fezs4xpw> <div class="container" data-astro-cid-fezs4xpw> <div class="crumbs" data-astro-cid-fezs4xpw> <a href="/" data-astro-cid-fezs4xpw>首页</a><span data-astro-cid-fezs4xpw>/</span><a href="/notes/" data-astro-cid-fezs4xpw>技术选型</a><span data-astro-cid-fezs4xpw>/</span> <span data-astro-cid-fezs4xpw>NOTE 03</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:24em;" data-astro-cid-fezs4xpw>Astro 与 Vue / React 到底差在哪</h1> <p data-astro-cid-fezs4xpw>一个是「把渲染放在构建时」，一个是「把渲染放在浏览器运行时」。顺带解释为什么两者都能 npm run dev，以及 dev server 与构建产物的本质区别。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-fezs4xpw> <span class="badge" data-astro-cid-fezs4xpw>6 分钟</span> <span class="tag" data-astro-cid-fezs4xpw>Astro</span><span class="tag" data-astro-cid-fezs4xpw>前端框架</span><span class="tag" data-astro-cid-fezs4xpw>构建原理</span> </div> </div> </section> <div class="container" data-astro-cid-fezs4xpw> <div class="detail" data-astro-cid-fezs4xpw> <article class="prose" data-astro-cid-fezs4xpw> <h2 id="一句话区别">一句话区别</h2>
+<p><strong>Vue / React 把渲染放在浏览器运行时，Astro 把渲染放在构建时。</strong></p>
+<p>不是因为 Astro「更先进」，而是它们解决的问题不同：前者要构建<strong>交互式应用</strong>，后者要构建<strong>内容型页面</strong>。</p>
+<h2 id="两种产物">两种产物</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th></th><th>Vue / React</th><th>Astro</th></tr></thead><tbody><tr><td>你写的东西</td><td><code>.vue</code> / <code>.jsx</code> 组件</td><td><code>.astro</code> 组件 + Markdown</td></tr><tr><td>构建产物</td><td>HTML 骨架 + 一个 JS bundle</td><td>完整 HTML + CSS</td></tr><tr><td>页面何时成形</td><td>浏览器执行完 JS 之后</td><td>构建完成那一刻</td></tr><tr><td>首屏</td><td>依赖 JS，失败即白屏</td><td>HTML 直出，无 JS 也有内容</td></tr><tr><td>默认 JS 体积</td><td>框架运行时 + 业务代码，几十到几百 KB</td><td>0 KB</td></tr></tbody></table>
+<p>一个常见的误解是「Astro 也是前端框架，所以它也会打包 JS」。实际上去看产物就清楚了：这个项目的 <code>dist/</code> 里只有 <code>.html</code>、一个 <code>.css</code>，<strong>没有任何 <code>.js</code></strong>。</p>
+<h2 id="astro-并不排斥-vue--react">Astro 并不排斥 Vue / React</h2>
+<p>它可以按需引入：<code>npx astro add react</code>，然后在 <code>.astro</code> 里写 <code>&#x3C;Counter client:load /></code>。这引出 <strong>岛屿架构（Islands Architecture）</strong>：</p>
+<ul>
+<li>整页是静态 HTML——「海面」；</li>
+<li>只有需要交互的组件是「岛屿」，只有这些岛屿的 JS 会因为 <code>client:*</code> 指令被下载并在浏览器 hydrate；</li>
+<li>没写 <code>client:*</code> 的组件，其 JS <strong>根本不会进产物</strong>。</li>
+</ul>
+<p>所以「要不要用框架」从「全局选边」变成了「按组件决定」。对一个博客来说，可能只有搜索框需要 JS。</p>
+<h2 id="为什么两者都能-npm-run-dev">为什么两者都能 <code>npm run dev</code></h2>
+<p>因为 <code>npm run dev</code> 跟框架没关系，它只是 npm 的通用机制：读 <code>package.json</code> 的 <code>scripts.dev</code>，执行那条命令。而这些工具都满足同一个模式——<strong>以 npm 包形式分发，包内带一个 CLI 可执行文件，CLI 内置基于 Node 的开发服务器</strong>（HTTP 服务 + 文件监听 + WebSocket 推送热更新）。</p>
+<p>更巧的是底层是同一个东西：<strong>Astro 内部用 Vite 驱动</strong>，Vue / React + Vite 项目也是 Vite。所以启动方式、端口风格、热更新速度都一样——因为跑的是同一个工具。</p>
+<p>但 dev server 干的活不同：</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th></th><th>Vue / React + Vite</th><th>Astro dev</th></tr></thead><tbody><tr><td>收到请求时</td><td>把源码按需转成 ESM 模块发给浏览器</td><td>在 Node 里<strong>当场渲染</strong>成完整 HTML 返回</td></tr><tr><td>DOM 从哪来</td><td>浏览器执行 JS 生成</td><td>服务器已经渲染好</td></tr><tr><td>生产环境</td><td>仍是浏览器跑 JS</td><td>产物是静态文件，<strong>不需要 Node</strong></td></tr></tbody></table>
+<p>最后一行是关键：<code>astro dev</code> 有 Node 进程，但那只是开发工具。<code>astro build</code> 之后就不需要 Node 了。很多人误以为「Astro 站必须用 Node 部署」，就是把这两个阶段混为一谈。</p>
+<h2 id="顺带一句dev-和-build-产物差别很大">顺带一句：dev 和 build 产物差别很大</h2>
+<p><code>astro dev</code> 不压缩、带 sourcemap、按需渲染，启动就要两百多 MB 内存。<strong>在 512MB 的开发板上绝对不能跑 dev server</strong>，构建必须在 PC 上完成，只把 <code>dist/</code> 传上去。</p>
+<h2 id="判断标准">判断标准</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>需求</th><th>选择</th></tr></thead><tbody><tr><td>博客、文档、产品介绍、课程项目展示</td><td>Astro（静态输出）</td></tr><tr><td>后台管理、在线编辑器、复杂状态流转</td><td>Vue / React SPA</td></tr><tr><td>内容为主 + 少量交互</td><td>Astro + 少量岛屿</td></tr><tr><td>需要登录、数据库、实时协作</td><td>前端框架 + SSR 框架（Next / Nuxt）</td></tr></tbody></table>
+<p>对本项目来说，答案很清楚：内容全是 Markdown，交互需求几乎为零，<strong>用 Vue 或 React 属于给自己加一层运行时负担</strong>。</p> </article> <aside class="side" data-astro-cid-fezs4xpw> <h4 data-astro-cid-fezs4xpw>文章信息</h4> <dl data-astro-cid-fezs4xpw> <dt data-astro-cid-fezs4xpw>日期</dt><dd data-astro-cid-fezs4xpw>2026.11.06</dd> <dt data-astro-cid-fezs4xpw>阅读</dt><dd data-astro-cid-fezs4xpw>6 分钟</dd> <dt data-astro-cid-fezs4xpw>分类</dt><dd data-astro-cid-fezs4xpw>技术选型</dd> </dl> <h4 style="margin-top:22px;" data-astro-cid-fezs4xpw>全部文章</h4> <ul class="side-links" data-astro-cid-fezs4xpw> <li data-astro-cid-fezs4xpw><a href="/notes/01-static-first/" data-astro-cid-fezs4xpw>静态优先的选型推导 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/02-frp-tunnel/" data-astro-cid-fezs4xpw>内网穿透与 frp 落地 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/03-build-vs-runtime/" data-astro-cid-fezs4xpw>Astro 与 Vue/React 的差别 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/04-performance/" data-astro-cid-fezs4xpw>x86 与 i.MX6ULL 性能实测 <span data-astro-cid-fezs4xpw>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-fezs4xpw> <div data-astro-cid-fezs4xpw><a href="/notes/02-frp-tunnel/" data-astro-cid-fezs4xpw>← 内网穿透方案对比与 frp 落地</a></div> <div class="pager__next" data-astro-cid-fezs4xpw> <a href="/notes/04-performance/" data-astro-cid-fezs4xpw>性能实测：同一个页面在 x86 与 i.MX6ULL 上 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 

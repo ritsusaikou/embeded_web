@@ -1,10 +1,62 @@
 ---
-const year = new Date().getFullYear();
+import { site } from '../data/site';
+
+const y = new Date().getFullYear();
 ---
 
 <footer class="site-footer">
-  <div>© {year} 轻痕 · 由 <a href="https://astro.build" target="_blank" rel="noopener">Astro</a> 强力驱动</div>
-  <div class="rss-hint" style="margin-top:0.35rem">
-    <a href="/rss.xml">RSS 订阅</a>
+  <div class="container">
+    <div class="footer__grid">
+      <div>
+        <div class="footer__brand">
+          <span class="brand__mark">{site.brandMark}</span>
+          <span class="brand__text">
+            <span class="brand__name">{site.brandName}</span>
+            <span class="brand__sub">{site.brandSub}</span>
+          </span>
+        </div>
+        <p>
+          本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+        </p>
+      </div>
+
+      <div>
+        <h5>课程内容</h5>
+        <ul>
+          <li><a href="/lab/">实验日志（8 篇）</a></li>
+          <li><a href="/project/">课程项目 · frp 建站</a></li>
+          <li><a href="/course-design/">课程设计 · Qt 应用</a></li>
+          <li><a href="/gallery/">演示素材</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h5>工程文档</h5>
+        <ul>
+          <li><a href="/docs/">系统设计文档</a></li>
+          <li><a href="/notes/">技术选型分析</a></li>
+          <li><a href="/source/">源码与产物</a></li>
+          <li><a href="/about/">关于本站</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h5>运行环境</h5>
+        <ul>
+          <li class="mono">board · i.MX6ULL</li>
+          <li class="mono">ram · 512MB</li>
+          <li class="mono">server · nginx + frp</li>
+          <li>
+            <a href={site.github} target="_blank" rel="noopener">github.com ↗</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <span>© {y} {site.author} · {site.course}</span>
+      <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span>
+    </div>
   </div>
 </footer>

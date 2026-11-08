@@ -1,0 +1,92 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>运行状态 · 嵌入式系统课程项目站</title><meta name="description" content="开发板实时运行状态：内核版本、内存占用、Nginx 进程、隧道状态。数据由板上脚本每 10 秒采集。"><link rel="canonical" href="https://board.nexuslink.icu/status/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="运行状态 · 嵌入式系统课程项目站"><meta property="og:description" content="开发板实时运行状态：内核版本、内存占用、Nginx 进程、隧道状态。数据由板上脚本每 10 秒采集。"><meta property="og:url" content="https://board.nexuslink.icu/status/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.status-bar[data-astro-cid-r3iuo3rh]{display:flex;align-items:center;gap:10px;padding:12px 16px;border:1px solid var(--line);border-bottom:0;border-radius:var(--r) var(--r) 0 0;background:var(--soft);font-size:13px;color:var(--ink-2)}.status-bar__sp[data-astro-cid-r3iuo3rh]{flex:1}.status-bar[data-astro-cid-r3iuo3rh] .mono[data-astro-cid-r3iuo3rh]{font-size:12px;color:var(--muted)}.table-wrap[data-astro-cid-r3iuo3rh]{overflow-x:auto;border:1px solid var(--line);border-radius:0 0 var(--r) var(--r);background:#fff}.tbl[data-astro-cid-r3iuo3rh]{width:100%;border-collapse:collapse;font-size:13.5px}.tbl[data-astro-cid-r3iuo3rh] th[data-astro-cid-r3iuo3rh],.tbl[data-astro-cid-r3iuo3rh] td[data-astro-cid-r3iuo3rh]{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line)}.tbl[data-astro-cid-r3iuo3rh] thead[data-astro-cid-r3iuo3rh] th[data-astro-cid-r3iuo3rh]{background:var(--soft);font-size:12px;font-weight:600;color:var(--ink-3)}.tbl[data-astro-cid-r3iuo3rh] tbody[data-astro-cid-r3iuo3rh] tr[data-astro-cid-r3iuo3rh]:last-child td[data-astro-cid-r3iuo3rh]{border-bottom:0}.tbl[data-astro-cid-r3iuo3rh] .val[data-astro-cid-r3iuo3rh]{font-family:var(--mono);font-size:12.5px;color:var(--ink);font-weight:600}.code[data-astro-cid-r3iuo3rh]{background:var(--navy);color:#dbe3ec;border-radius:var(--r);padding:20px 22px;overflow-x:auto;font-size:12.2px;line-height:1.8;margin:0}.code[data-astro-cid-r3iuo3rh] code[data-astro-cid-r3iuo3rh]{font-family:var(--mono);white-space:pre}.code-label[data-astro-cid-r3iuo3rh]{font-size:12px;font-family:var(--mono);color:var(--muted);margin-bottom:8px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-r3iuo3rh> <div class="container" data-astro-cid-r3iuo3rh> <div class="crumbs" data-astro-cid-r3iuo3rh> <a href="/" data-astro-cid-r3iuo3rh>首页</a><span data-astro-cid-r3iuo3rh>/</span><span data-astro-cid-r3iuo3rh>运行状态</span> </div> <h1 data-astro-cid-r3iuo3rh>运行状态</h1> <p data-astro-cid-r3iuo3rh>
+这一页回答一个朴素的问题：<strong data-astro-cid-r3iuo3rh>内容真的是这块板子发出来的吗？</strong>
+下面的数据由板上脚本读取 <span class="mono" data-astro-cid-r3iuo3rh>/proc</span> 生成，每 10 秒更新一次。
+</p> </div> </section> <section class="section" data-astro-cid-r3iuo3rh> <div class="container" data-astro-cid-r3iuo3rh> <div class="status-bar" data-astro-cid-r3iuo3rh> <span class="dot-live" data-astro-cid-r3iuo3rh></span> <span data-astro-cid-r3iuo3rh>采集正常</span> <span class="mono" id="st-collectedAt" data-astro-cid-r3iuo3rh>2026-11-08 15:40</span> <span class="status-bar__sp" data-astro-cid-r3iuo3rh></span> <span class="mono" data-astro-cid-r3iuo3rh>source · /var/www/site/status.json</span> </div> <div class="table-wrap" data-astro-cid-r3iuo3rh> <table class="tbl" data-astro-cid-r3iuo3rh> <thead data-astro-cid-r3iuo3rh> <tr data-astro-cid-r3iuo3rh><th data-astro-cid-r3iuo3rh>字段</th><th data-astro-cid-r3iuo3rh>含义</th><th data-astro-cid-r3iuo3rh>当前值</th><th data-astro-cid-r3iuo3rh>数据来源</th></tr> </thead> <tbody data-astro-cid-r3iuo3rh> <tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>host</td> <td data-astro-cid-r3iuo3rh>主机名</td> <td class="val" id="st-host" data-astro-cid-r3iuo3rh>imx6ull-alpha</td> <td class="mono muted" data-astro-cid-r3iuo3rh>hostname</td> </tr><tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>kernel</td> <td data-astro-cid-r3iuo3rh>内核版本</td> <td class="val" id="st-kernel" data-astro-cid-r3iuo3rh>4.1.15</td> <td class="mono muted" data-astro-cid-r3iuo3rh>uname -r</td> </tr><tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>uptime</td> <td data-astro-cid-r3iuo3rh>连续运行</td> <td class="val" id="st-uptime" data-astro-cid-r3iuo3rh>6d 04:12</td> <td class="mono muted" data-astro-cid-r3iuo3rh>/proc/uptime</td> </tr><tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>mem</td> <td data-astro-cid-r3iuo3rh>内存占用</td> <td class="val" id="st-mem" data-astro-cid-r3iuo3rh>58 / 512 MB</td> <td class="mono muted" data-astro-cid-r3iuo3rh>/proc/meminfo</td> </tr><tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>nginx</td> <td data-astro-cid-r3iuo3rh>Nginx 进程</td> <td class="val" id="st-nginx" data-astro-cid-r3iuo3rh>1.14.2 · 1 worker</td> <td class="mono muted" data-astro-cid-r3iuo3rh>nginx -v + ps</td> </tr><tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>tunnel</td> <td data-astro-cid-r3iuo3rh>隧道状态</td> <td class="val" id="st-tunnel" data-astro-cid-r3iuo3rh>frp 0.58 · 已连通</td> <td class="mono muted" data-astro-cid-r3iuo3rh>frpc 状态</td> </tr><tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>tls</td> <td data-astro-cid-r3iuo3rh>证书与协议</td> <td class="val" id="st-tls" data-astro-cid-r3iuo3rh>TLS 1.3 · 公网终结</td> <td class="mono muted" data-astro-cid-r3iuo3rh>公网服务器 Nginx</td> </tr><tr data-astro-cid-r3iuo3rh> <td class="mono" data-astro-cid-r3iuo3rh>collectedAt</td> <td data-astro-cid-r3iuo3rh>采集时间</td> <td class="val" id="st-collectedAt" data-astro-cid-r3iuo3rh>2026-11-08 15:40</td> <td class="mono muted" data-astro-cid-r3iuo3rh>date</td> </tr> </tbody> </table> </div> <p class="small" style="margin-top:14px;" data-astro-cid-r3iuo3rh>
+若页面显示的是构建时快照（时间戳较早），说明 <span class="mono" data-astro-cid-r3iuo3rh>status.json</span>
+未就绪或采集脚本未启动——此时前端会自动回退，不影响页面可用性。
+</p> </div> </section> <section class="section section--soft" data-astro-cid-r3iuo3rh> <div class="container" data-astro-cid-r3iuo3rh> <div class="head"> <div class="head__left"> <span class="eyebrow">实现</span> <h2>为什么要用「定时生成 JSON」而不是后端接口</h2> <p>静态站拿不到实时数据，但为了一行状态就常驻一个 Node 进程并不划算。</p> </div>  </div> <div class="grid-2" style="gap:40px; align-items:start;" data-astro-cid-r3iuo3rh> <div class="stack-16" style="font-size:15px; color:var(--ink-3);" data-astro-cid-r3iuo3rh> <p data-astro-cid-r3iuo3rh>
+三种做法：<strong data-astro-cid-r3iuo3rh>常驻 Node 接口</strong>（60–120MB 内存）、<strong data-astro-cid-r3iuo3rh>CGI 脚本</strong>（&lt;1MB，但每请求 fork 一次）、
+<strong data-astro-cid-r3iuo3rh>定时生成静态 JSON</strong>（零常驻，前端只发一个静态请求）。
+</p> <p data-astro-cid-r3iuo3rh>
+状态数据的时效要求是「十秒级」，不是「毫秒级」。这种情况下定时生成完全够用，
+            而且它把 <em data-astro-cid-r3iuo3rh>采集</em> 和 <em data-astro-cid-r3iuo3rh>服务</em> 彻底解耦：采集挂了，站点照常可用，只是数字不更新。
+</p> <p data-astro-cid-r3iuo3rh>
+还有一个细节：写入用 <span class="mono" data-astro-cid-r3iuo3rh>mv</span> 原子替换，
+            否则前端可能读到只写了一半的文件，JSON 解析直接失败。
+</p> </div> <div data-astro-cid-r3iuo3rh> <div class="code-label" data-astro-cid-r3iuo3rh>/usr/local/bin/status-collector.sh</div> <pre class="code" data-astro-cid-r3iuo3rh><code data-astro-cid-r3iuo3rh>#!/bin/sh
+# /usr/local/bin/status-collector.sh
+# 由 systemd timer 每 10 秒执行一次，原子写出 status.json
+OUT=/var/www/site/status.json
+TMP=&quot;$OUT.new&quot;
+
+UP=$(cut -d. -f1 /proc/uptime)
+D=$((UP / 86400))
+H=$(((UP % 86400) / 3600))
+M=$(((UP % 3600) / 60))
+
+MEM_TOTAL=$(awk &#39;/MemTotal/     {printf &quot;%d&quot;, $2/1024}&#39; /proc/meminfo)
+MEM_AVAIL=$(awk &#39;/MemAvailable/ {printf &quot;%d&quot;, $2/1024}&#39; /proc/meminfo)
+MEM_USED=$((MEM_TOTAL - MEM_AVAIL))
+
+NGX_VER=$(nginx -v 2&gt;&amp;1 | sed &#39;s#.*/##&#39;)
+NGX_RSS=$(ps -o rss= -C nginx | awk &#39;{s+=\$1} END {printf &quot;%.1f&quot;, s/1024}&#39;)
+
+TUNNEL=&quot;frp · 未连接&quot;
+if pgrep -x frpc &gt;/dev/null 2&gt;&amp;1; then
+  FRP_VER=$(frpc -v 2&gt;/dev/null | awk &#39;{print $3}&#39;)
+  TUNNEL=&quot;frp ${FRP_VER:-?} · 已连通&quot;
+fi
+
+cat &gt; &quot;$TMP&quot; &lt;&lt;JSON
+{
+  &quot;host&quot;: &quot;$(hostname)&quot;,
+  &quot;kernel&quot;: &quot;$(uname -r)&quot;,
+  &quot;uptime&quot;: &quot;${D}d ${H}h ${M}m&quot;,
+  &quot;mem&quot;: &quot;${MEM_USED} / ${MEM_TOTAL} MB&quot;,
+  &quot;nginx&quot;: &quot;${NGX_VER} · worker rss ${NGX_RSS}MB&quot;,
+  &quot;tunnel&quot;: &quot;${TUNNEL}&quot;,
+  &quot;tls&quot;: &quot;TLS 1.3 · 公网终结&quot;,
+  &quot;collectedAt&quot;: &quot;$(date &#39;+%Y-%m-%d %H:%M&#39;)&quot;
+}
+JSON
+
+mv &quot;$TMP&quot; &quot;$OUT&quot;   # 原子替换，避免前端读到半个文件</code></pre> </div> </div> <div style="margin-top:28px;" data-astro-cid-r3iuo3rh> <div class="code-label" data-astro-cid-r3iuo3rh>systemd timer · 每 10 秒触发</div> <pre class="code" data-astro-cid-r3iuo3rh><code data-astro-cid-r3iuo3rh># /etc/systemd/system/status-collector.service
+[Unit]
+Description=Collect board status into status.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/status-collector.sh
+
+# /etc/systemd/system/status-collector.timer
+[Unit]
+Description=Run status collector every 10s
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=10s
+
+[Install]
+WantedBy=timers.target
+
+systemctl daemon-reload
+systemctl enable --now status-collector.timer</code></pre> </div> <p class="small" style="margin-top:18px;" data-astro-cid-r3iuo3rh>
+回首页查看状态面板 →
+<a href="/" style="color:var(--brand-dark);" data-astro-cid-r3iuo3rh>首页</a>；
+        完整架构见 <a href="/project/" style="color:var(--brand-dark);" data-astro-cid-r3iuo3rh>课程项目</a>。
+</p> </div> </section>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html>  <script>
+  fetch('/status.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then((d) => {
+      Object.keys(d).forEach((k) => {
+        const el = document.getElementById('st-' + k);
+        if (el) el.textContent = d[k];
+      });
+    })
+    .catch(() => {});
+</script>

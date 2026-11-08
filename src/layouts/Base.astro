@@ -1,16 +1,18 @@
 ---
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import { site } from '../data/site';
 import '../styles/global.css';
 
 interface Props {
   title?: string;
   description?: string;
+  bodyClass?: string;
 }
 
-const { title, description = '一个安静写字的地方' } = Astro.props;
-const siteTitle = '轻痕 · Light Marks';
-const fullTitle = title ? `${title} · ${siteTitle}` : siteTitle;
+const { title, description = site.description, bodyClass } = Astro.props;
+const fullTitle = title ? `${title} · ${site.name}` : `${site.name} · i.MX6ULL 上的静态站点`;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://imx6ull.example.com');
 ---
 
 <!doctype html>
@@ -19,14 +21,22 @@ const fullTitle = title ? `${title} · ${siteTitle}` : siteTitle;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
-    <meta name="description" content={description} />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate" type="application/rss+xml" title={siteTitle} href="/rss.xml" />
     <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <meta name="theme-color" content="#ff5000" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate" type="application/rss+xml" title={site.name} href="/rss.xml" />
   </head>
-  <body>
+  <body class={bodyClass}>
+    <a class="sr-only" href="#main">跳到主要内容</a>
     <Header />
-    <main>
+    <main id="main">
       <slot />
     </main>
     <Footer />

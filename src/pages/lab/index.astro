@@ -1,0 +1,144 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../../components/Icon.astro';
+import { getCollection } from 'astro:content';
+
+const labs = (await getCollection('lab')).sort((a, b) => a.data.order - b.data.order);
+const notes = (await getCollection('note')).sort((a, b) => a.data.order - b.data.order);
+const fmt = (d: Date) =>
+  `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+
+const allTags = [...new Set(labs.flatMap((l) => l.data.tags))];
+---
+
+<Base title="实验日志" description="嵌入式系统课程 8 个实验的完整记录：环境搭建、裸机 LED、TFTP/NFS、蜂鸣器驱动、音频驱动、Qt 文本读写、Qt 控制 LED、Qt 控制 Camera。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>实验日志</span>
+      </div>
+      <h1>实验日志</h1>
+      <p>
+        课程共 8 次实验，全部完成并整理成文。每篇都包含实验目的、原理推导、关键代码、
+        实测结果，以及真实遇到过的报错与排查过程——最后一部分往往比结论更有用。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="lab-layout">
+        <div>
+          <div class="rows">
+            {labs.map((lab) => (
+              <a class="row" href={`/lab/${lab.id}/`}>
+                <span class="row__idx">L{String(lab.data.order).padStart(2, '0')}</span>
+                <span>
+                  <span class="row__title">
+                    {lab.data.title}
+                    <span class="badge badge--ok">{lab.data.week}</span>
+                  </span>
+                  <span class="row__desc">{lab.data.summary}</span>
+                  <span class="card__tags" style="margin-top:10px;">
+                    {lab.data.tags.map((t) => <span class="tag">{t}</span>)}
+                  </span>
+                </span>
+                <span class="row__meta">{fmt(lab.data.date)}<br />{lab.data.duration}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <aside>
+          <div class="side">
+            <h4>实验总览</h4>
+            <dl>
+              <dt>数量</dt><dd>{labs.length} 次</dd>
+              <dt>状态</dt><dd>全部完成</dd>
+              <dt>平台</dt><dd>i.MX6ULL</dd>
+              <dt>内核</dt><dd>Linux 4.1.15</dd>
+            </dl>
+          </div>
+
+          <div class="side" style="margin-top:20px;">
+            <h4>技术标签</h4>
+            <div class="card__tags">
+              {allTags.map((t) => <span class="tag">{t}</span>)}
+            </div>
+          </div>
+
+          <div class="side" style="margin-top:20px;">
+            <h4>相关板块</h4>
+            <ul class="side-links">
+              <li><a href="/course-design/">课程设计 · Qt 应用 <Icon name="arrow" size={13} /></a></li>
+              <li><a href="/project/">课程项目 · frp 建站 <Icon name="arrow" size={13} /></a></li>
+              <li><a href="/notes/">技术选型分析 <Icon name="arrow" size={13} /></a></li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+
+      <div class="next-up">
+        <div>
+          <span class="eyebrow">下一步</span>
+          <h3 style="margin:12px 0 8px;">课程设计与课程项目</h3>
+          <p class="muted" style="font-size:14px; max-width:52em;">
+            8 次实验是基础训练。在此基础上还有两项综合作业：一个用 Qt 编写的桌面软件
+            （课程设计），以及本站本身（课程项目）。完成进度见对应板块。
+          </p>
+        </div>
+        <div class="cta__actions">
+          <a class="btn btn--primary" href="/course-design/">课程设计</a>
+          <a class="btn btn--ghost" href="/project/">课程项目</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .lab-layout {
+    display: grid;
+    grid-template-columns: 1fr 268px;
+    gap: 48px;
+    align-items: start;
+  }
+  .side-links li + li {
+    margin-top: 10px;
+  }
+  .side-links a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13.5px;
+    color: var(--ink-2);
+  }
+  .side-links a:hover {
+    color: var(--brand);
+  }
+  .next-up {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    margin-top: 56px;
+    padding: 28px 30px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--soft);
+  }
+  .cta__actions {
+    display: flex;
+    gap: 10px;
+    flex: none;
+  }
+  @media (max-width: 1000px) {
+    .lab-layout {
+      grid-template-columns: 1fr;
+    }
+    .next-up {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

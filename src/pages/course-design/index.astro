@@ -1,0 +1,257 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Icon from '../../components/Icon.astro';
+
+const modules = [
+  {
+    icon: 'code',
+    t: '主界面与交互',
+    d: '主窗口布局、控件组织、信号槽连接。与第 6–8 次实验的 Qt 部分一脉相承。',
+    state: '待补'
+  },
+  {
+    icon: 'chip',
+    t: '硬件控制层',
+    d: '通过 sysfs / 自定义字符设备控制 LED 与蜂鸣器，复用第 4、7 次实验的驱动。',
+    state: '待补'
+  },
+  {
+    icon: 'image',
+    t: '图像采集',
+    d: 'V4L2 采集摄像头画面并显示、拍照保存，复用第 8 次实验的采集链路。',
+    state: '待补'
+  },
+  {
+    icon: 'doc',
+    t: '数据存储',
+    d: '日志与配置的本地读写，基于 QFile / QTextStream，复用第 6 次实验。',
+    state: '待补'
+  }
+];
+
+const plan = [
+  { k: '选题确定', v: '功能范围与界面草图', s: 'done' },
+  { k: '工程搭建', v: 'Qt Creator Kit、交叉编译验证', s: 'done' },
+  { k: '功能开发', v: '模块实现与联调', s: 'doing' },
+  { k: '上板验证', v: 'linuxfb 运行、触摸屏适配', s: 'waiting' },
+  { k: '文档与演示', v: '说明文档、截图、视频', s: 'waiting' }
+];
+---
+
+<Base title="课程设计" description="嵌入式系统课程设计：使用 Qt 编写的桌面应用，复用课程实验中的驱动与采集能力。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>课程设计</span>
+      </div>
+      <h1>课程设计 · Qt 桌面应用</h1>
+      <p>
+        独立于 8 次课程实验的综合作业：用 Qt 写一个能在开发板上运行的桌面软件，
+        把前面实验里分散的能力（GPIO 控制、文件读写、摄像头采集）整合到一个界面上。
+      </p>
+      <div class="card__tags" style="margin-top:16px;">
+        <span class="badge badge--wait">进行中 · 内容待上传</span>
+        <span class="tag">Qt 5.12</span>
+        <span class="tag">C++</span>
+        <span class="tag">linuxfb</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="grid-2" style="gap:56px; align-items:start;">
+        <div>
+          <span class="eyebrow">定位</span>
+          <h2 style="margin:14px 0 16px;">把 8 次实验的能力收进一个应用</h2>
+          <div class="stack-16" style="font-size:15px; color:var(--ink-3);">
+            <p>
+              课程实验是单点训练：点亮一盏灯、读到一帧图像、保存一个文本。课程设计要求
+              把这些点连成面——一个真正有界面、有交互、能交付给用户使用的软件。
+            </p>
+            <p>
+              技术路线沿用实验里已经验证过的部分：<strong>Qt 5.12 交叉编译 + linuxfb 平台插件</strong>，
+              硬件访问一律走 sysfs 与 V4L2，不额外引入依赖。这样做的代价是功能朴素，
+              好处是在 512MB 的板子上跑得动，且每一层都能讲清楚。
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="padding:26px;">
+          <div class="card__num">COURSE DESIGN</div>
+          <dl class="info">
+            <dt>题目</dt><dd>待定（初拟：板载外设综合控制台）</dd>
+            <dt>技术栈</dt><dd>Qt 5.12.9 · C++11 · tslib</dd>
+            <dt>运行环境</dt><dd>i.MX6ULL + 4.3" 触摸屏</dd>
+            <dt>编译方式</dt><dd>宿主机交叉编译，产物拷至板子</dd>
+            <dt>代码仓库</dt><dd>与本站同仓库，目录待补</dd>
+            <dt>当前进度</dt><dd>功能开发中</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead
+        eyebrow="模块规划"
+        title="四个模块，全部复用课程实验"
+        desc="每个模块都能对应到某次实验，避免为了做设计而引入没验证过的技术。"
+      />
+      <div class="cards cards--4">
+        {modules.map((m) => (
+          <div class="card">
+            <span class="card__icon"><Icon name={m.icon} size={16} /></span>
+            <h3>{m.t}</h3>
+            <p>{m.d}</p>
+            <div class="card__foot">
+              <span class="badge badge--wait">{m.state}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="grid-2" style="gap:56px; align-items:start;">
+        <div>
+          <SectionHead eyebrow="进度" title="当前状态" />
+          <ul class="plan">
+            {plan.map((p) => (
+              <li class={`plan__item plan__item--${p.s}`}>
+                <span class="plan__dot"></span>
+                <div>
+                  <div class="plan__k">{p.k}</div>
+                  <div class="plan__v">{p.v}</div>
+                </div>
+                <span class="plan__s">
+                  {p.s === 'done' ? '已完成' : p.s === 'doing' ? '进行中' : '待开始'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <SectionHead eyebrow="预留" title="待上传内容" />
+          <div class="stack-16">
+            <div class="placeholder">
+              <strong>界面截图</strong>
+              主窗口与各功能页截图，不少于 4 张
+            </div>
+            <div class="placeholder">
+              <strong>功能演示视频</strong>
+              上板运行 → 操作各模块 → 结果反馈
+            </div>
+            <div class="placeholder">
+              <strong>设计说明文档</strong>
+              需求分析、模块划分、关键代码与遇到的问题
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <div class="cta">
+        <div>
+          <h3>这个板块正在建设中</h3>
+          <p class="muted" style="margin-top:8px; font-size:14px;">
+            完成开发后会把源码目录、界面截图、演示视频与说明文档补充到这里。
+            在此之前，可以先看相关的课程实验记录。
+          </p>
+        </div>
+        <div class="cta__actions">
+          <a class="btn btn--primary" href="/lab/">查看实验日志</a>
+          <a class="btn btn--ghost" href="/project/">课程项目</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .info {
+    display: grid;
+    grid-template-columns: 76px 1fr;
+    gap: 11px 14px;
+    font-size: 13.5px;
+    margin: 0;
+  }
+  .info dt {
+    color: var(--muted);
+  }
+  .info dd {
+    margin: 0;
+  }
+  .plan {
+    border-top: 1px solid var(--line);
+  }
+  .plan__item {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .plan__dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--line-2);
+    justify-self: center;
+  }
+  .plan__item--done .plan__dot {
+    background: #12b76a;
+  }
+  .plan__item--doing .plan__dot {
+    background: var(--brand);
+  }
+  .plan__k {
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+  .plan__v {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .plan__s {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .plan__item--done .plan__s {
+    color: #087443;
+  }
+  .plan__item--doing .plan__s {
+    color: var(--brand);
+  }
+  .cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 30px 34px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: linear-gradient(120deg, var(--brand-soft), #fff 60%);
+  }
+  .cta__actions {
+    display: flex;
+    gap: 10px;
+    flex: none;
+  }
+  @media (max-width: 720px) {
+    .cta {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

@@ -1,0 +1,260 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Icon from '../../components/Icon.astro';
+import { site } from '../../data/site';
+
+const clone = `# 1. 克隆
+git clone ${site.github}.git
+cd embeded_web
+
+# 2. 安装依赖（仅 PC 需要）
+npm install
+
+# 3. 本地预览
+npm run dev          # http://localhost:4321
+
+# 4. 构建（产物在 dist/）
+npm run build
+
+# 5. 发布到开发板（先改 deploy/deploy.sh 里的地址）
+npm run deploy`;
+
+const artifacts = [
+  { f: 'index.html', s: '约 12 KB', d: '首页 Dashboard' },
+  { f: 'lab/index.html', s: '约 11 KB', d: '实验列表' },
+  { f: 'lab/*/index.html', s: '约 14 KB × 8', d: '8 篇实验详情' },
+  { f: 'notes/*/index.html', s: '约 12 KB × 4', d: '技术选型详情' },
+  { f: '_astro/*.css', s: '约 14 KB', d: '全站唯一样式表' },
+  { f: 'rss.xml · sitemap.xml', s: '约 8 KB', d: '订阅与站点地图' }
+];
+
+const scripts = [
+  {
+    name: 'npm run dev',
+    d: '启动 Vite 开发服务器，按需渲染 + 热更新。只在 PC 上使用。'
+  },
+  {
+    name: 'npm run build',
+    d: '预渲染全部页面到 dist/，含 RSS 与 sitemap。'
+  },
+  {
+    name: 'npm run preview',
+    d: '本地起一个静态服务预览构建产物，验证压缩与路径是否正确。'
+  },
+  {
+    name: 'npm run deploy',
+    d: '构建 → 预压缩 → rsync 到开发板 → 重载 Nginx。'
+  }
+];
+
+const commits = [
+  { h: 'b058f57', m: 'first commit · 初版静态博客骨架', t: '初版' },
+  { h: '—', m: '重构：清空旧内容，改建项目站（7 个板块）', t: '重构' },
+  { h: '—', m: '补齐 8 篇实验日志与 4 篇技术选型分析', t: '内容' },
+  { h: '—', m: '加入 status.json 契约与采集脚本', t: '运维' }
+];
+---
+
+<Base title="源码与产物" description="仓库结构、构建脚本、产物清单与复现步骤。全部源码公开在 GitHub。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>源码与产物</span>
+      </div>
+      <h1>源码与产物</h1>
+      <p>
+        整站源码公开，包含全部 Markdown 内容、组件、样式与部署脚本。
+        克隆后本地执行 <span class="mono">npm install &amp;&amp; npm run build</span> 即可完整复现。
+      </p>
+      <div class="card__tags" style="margin-top:16px;">
+        <span class="badge badge--ok">公开仓库</span>
+        <span class="tag">Astro 5</span>
+        <span class="tag">MIT</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="repo">
+        <div class="repo__card">
+          <span class="repo__icon"><Icon name="git" size={20} /></span>
+          <div>
+            <div class="repo__name">ritsusaikou / embeded_web</div>
+            <div class="repo__desc">嵌入式系统课程项目站 · 跑在 i.MX6ULL 上的静态站点</div>
+          </div>
+          <a class="btn btn--primary btn--sm" href={site.github} target="_blank" rel="noopener">
+            打开仓库 ↗
+          </a>
+        </div>
+      </div>
+
+      <div class="grid-2" style="gap:40px; margin-top:36px; align-items:start;">
+        <div>
+          <h3 style="margin-bottom:14px;">复现步骤</h3>
+          <pre class="code"><code>{clone}</code></pre>
+        </div>
+        <div>
+          <h3 style="margin-bottom:14px;">脚本说明</h3>
+          <ul class="scripts">
+            {scripts.map((s) => (
+              <li>
+                <span class="mono">{s.name}</span>
+                <span>{s.d}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead
+        eyebrow="产物"
+        title="构建产物清单"
+        desc="全部是静态文件：没有 JS bundle，没有服务端代码。gzip 后单页约 4KB。"
+      />
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>文件</th><th>体积（未压缩）</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            {artifacts.map((a) => (
+              <tr>
+                <td class="mono">{a.f}</td>
+                <td class="mono">{a.s}</td>
+                <td class="muted">{a.d}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <SectionHead eyebrow="记录" title="版本与变更" desc="保留关键节点，便于回溯每个板块是什么时候补上的。" />
+      <div class="rows">
+        {commits.map((c) => (
+          <div class="row" style="grid-template-columns:110px 1fr auto;">
+            <span class="row__idx">{c.h}</span>
+            <span class="row__title" style="font-weight:400; font-size:14.5px;">{c.m}</span>
+            <span class="row__meta">{c.t}</span>
+          </div>
+        ))}
+      </div>
+      <p class="small" style="margin-top:14px;">
+        完整历史见 GitHub 的 commit 记录；仓库每次内容更新都会保留一条提交。
+      </p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .repo__card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 22px 24px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: #fff;
+  }
+  .repo__icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: var(--soft-2);
+    color: var(--ink);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .repo__name {
+    font-family: var(--mono);
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+  .repo__desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .repo__card .btn {
+    margin-left: auto;
+    flex: none;
+  }
+  .code {
+    background: var(--navy);
+    color: #dbe3ec;
+    border-radius: var(--r);
+    padding: 20px 22px;
+    overflow-x: auto;
+    font-size: 12.4px;
+    line-height: 1.85;
+    margin: 0;
+  }
+  .code code {
+    font-family: var(--mono);
+    white-space: pre;
+  }
+  .scripts {
+    border-top: 1px solid var(--line);
+  }
+  .scripts li {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 16px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--ink-3);
+  }
+  .scripts li .mono {
+    font-size: 12.5px;
+    color: var(--brand-dark);
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: #fff;
+  }
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .tbl th,
+  .tbl td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tbl thead th {
+    background: var(--soft);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  @media (max-width: 720px) {
+    .repo__card {
+      flex-wrap: wrap;
+    }
+    .repo__card .btn {
+      margin-left: 0;
+    }
+    .scripts li {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+  }
+</style>

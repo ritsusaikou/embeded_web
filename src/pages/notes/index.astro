@@ -1,0 +1,89 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const notes = (await getCollection('note')).sort((a, b) => a.data.order - b.data.order);
+const fmt = (d: Date) =>
+  `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+---
+
+<Base title="技术选型" description="为什么不上 Node SSR、frp 如何落地、Astro 与 Vue/React 的区别，以及性能实测数据。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>技术选型</span>
+      </div>
+      <h1>技术选型</h1>
+      <p>
+        这个项目里每个技术决定都有前提条件。下面几篇把推导过程写出来了：
+        约束是什么、备选方案有哪些、为什么排除、最后用什么换什么。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="cards cards--2">
+        {notes.map((n, i) => (
+          <a class="card" href={`/notes/${n.id}/`}>
+            <div class="card__num">NOTE {String(i + 1).padStart(2, '0')} · {n.data.reading}</div>
+            <h3>{n.data.title}</h3>
+            <p style="margin-top:8px;">{n.data.summary}</p>
+            <div class="card__foot">
+              <span class="mono">{fmt(n.data.date)}</span>
+              <span class="card__tags" style="margin:0 0 0 auto;">
+                {n.data.tags.slice(0, 2).map((t) => <span class="tag">{t}</span>)}
+              </span>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <div class="note-hint">
+        <strong>阅读顺序建议</strong>
+        <ol class="hint-list">
+          <li><a href="/notes/01-static-first/">先看第 1 篇</a>：内存预算怎么推出「静态优先」</li>
+          <li><a href="/notes/03-build-vs-runtime/">再看第 3 篇</a>：Astro 与 Vue/React 的本质区别</li>
+          <li><a href="/notes/02-frp-tunnel/">然后第 2 篇</a>：没有公网 IP 怎么发布到域名</li>
+          <li><a href="/notes/04-performance/">最后第 4 篇</a>：用实测数据验证前面的判断</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .note-hint {
+    margin-top: 44px;
+    padding: 24px 26px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: var(--soft);
+    font-size: 14px;
+  }
+  .note-hint strong {
+    display: block;
+    margin-bottom: 10px;
+  }
+  .hint-list {
+    counter-reset: n;
+    display: grid;
+    gap: 8px;
+  }
+  .hint-list li {
+    counter-increment: n;
+    color: var(--ink-3);
+  }
+  .hint-list li::before {
+    content: counter(n) ".";
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-right: 8px;
+  }
+  .hint-list a {
+    color: var(--brand-dark);
+  }
+  .hint-list a:hover {
+    text-decoration: underline;
+  }
+</style>

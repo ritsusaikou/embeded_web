@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>为什么这个站点没有用 Node：静态优先的选型推导 · 嵌入式系统课程项目站</title><meta name="description" content="从 512MB 内存、单核 A7、SD 卡 IO 三个约束出发，逐步排除 Node SSR、Python、PHP 等方案，最后落到「静态文件 + Nginx」的推导过程。"><link rel="canonical" href="https://board.nexuslink.icu/notes/01-static-first/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="为什么这个站点没有用 Node：静态优先的选型推导 · 嵌入式系统课程项目站"><meta property="og:description" content="从 512MB 内存、单核 A7、SD 卡 IO 三个约束出发，逐步排除 Node SSR、Python、PHP 等方案，最后落到「静态文件 + Nginx」的推导过程。"><meta property="og:url" content="https://board.nexuslink.icu/notes/01-static-first/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-fezs4xpw] li[data-astro-cid-fezs4xpw]+li[data-astro-cid-fezs4xpw]{margin-top:10px}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--ink-2)}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]:hover{color:var(--brand)}.pager[data-astro-cid-fezs4xpw]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/" aria-current="page"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-fezs4xpw> <div class="container" data-astro-cid-fezs4xpw> <div class="crumbs" data-astro-cid-fezs4xpw> <a href="/" data-astro-cid-fezs4xpw>首页</a><span data-astro-cid-fezs4xpw>/</span><a href="/notes/" data-astro-cid-fezs4xpw>技术选型</a><span data-astro-cid-fezs4xpw>/</span> <span data-astro-cid-fezs4xpw>NOTE 01</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:24em;" data-astro-cid-fezs4xpw>为什么这个站点没有用 Node：静态优先的选型推导</h1> <p data-astro-cid-fezs4xpw>从 512MB 内存、单核 A7、SD 卡 IO 三个约束出发，逐步排除 Node SSR、Python、PHP 等方案，最后落到「静态文件 + Nginx」的推导过程。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-fezs4xpw> <span class="badge" data-astro-cid-fezs4xpw>7 分钟</span> <span class="tag" data-astro-cid-fezs4xpw>技术选型</span><span class="tag" data-astro-cid-fezs4xpw>内存预算</span><span class="tag" data-astro-cid-fezs4xpw>架构</span> </div> </div> </section> <div class="container" data-astro-cid-fezs4xpw> <div class="detail" data-astro-cid-fezs4xpw> <article class="prose" data-astro-cid-fezs4xpw> <h2 id="约束先行">约束先行</h2>
+<p>选型不该从「我会什么框架」开始，而应该从<strong>约束</strong>开始。这个项目的硬约束只有三条：</p>
+<ol>
+<li>目标机内存 512MB，且不是独占——内核、rootfs、必要守护进程都要占。</li>
+<li>单核 Cortex-A7，主频 528–792MHz，没有乱序执行、没有大缓存。</li>
+<li>存储是 SD 卡 / eMMC，随机写寿命有限，不适合高频日志。</li>
+</ol>
+<p>这三条直接决定了：<strong>任何常驻的、带运行时（runtime）的进程都是奢侈品。</strong></p>
+<h2 id="先算内存账">先算内存账</h2>
+<p>一个跑在板子上的网站，除了内容本身，还要付出「运行它」的固定开销：</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>方案</th><th>板上常驻内存</th><th>说明</th></tr></thead><tbody><tr><td>Node SSR（Astro <code>output: 'server'</code>）</td><td>60–120 MB</td><td>V8 堆 + SSR 运行时，冷启动要解析模板</td></tr><tr><td>Next.js / Nuxt SSR</td><td>150 MB+</td><td>框架层更厚</td></tr><tr><td>Python Flask + gunicorn</td><td>40–80 MB</td><td>每个 worker 20MB 起</td></tr><tr><td>PHP-FPM + Nginx</td><td>30–60 MB</td><td>每个 FPM worker 独立进程</td></tr><tr><td>Go 单二进制</td><td>10–20 MB</td><td>静态编译，协程轻，但需要交叉编译调试</td></tr><tr><td><strong>Nginx 提供静态文件</strong></td><td><strong>3–8 MB</strong></td><td>单 worker，<code>sendfile</code> 在内核态零拷贝发送</td></tr></tbody></table>
+<p>512MB 的机器上，Node SSR 会吃掉近五分之一内存，换来的是什么？<strong>这个站点没有任何需要服务端计算的东西</strong>——没有用户系统、没有数据库、没有实时接口。用 SSR 纯属为一个不存在的问题付出代价。</p>
+<h2 id="静态优先的三条收益">静态优先的三条收益</h2>
+<ol>
+<li><strong>内存</strong>：只留一个 Nginx worker，3MB 级别。</li>
+<li><strong>CPU</strong>：请求路径上没有模板渲染、没有 JIT，全部是 <code>read()</code> + <code>sendfile()</code>，单核也能扛住几百并发。</li>
+<li><strong>抗故障</strong>：没有后端进程，就没有「后端崩了」这种故障模式。Nginx 挂了重启一次 50ms。</li>
+</ol>
+<p>代价也很明确：<strong>内容更新必须重新构建、重新上传</strong>。对本项目（课程项目，每周更新几篇实验日志）来说，这个代价可以忽略。</p>
+<h2 id="那为什么构建工具还选-astro">那为什么构建工具还选 Astro</h2>
+<p>因为「运行时不要 Node」不等于「开发时不要工具链」。Astro 正好把这两件事分离得很干净：</p>
+<ul>
+<li>开发时：<code>.astro</code> 组件、Markdown、布局复用、类型检查，写起来和现代框架一样舒服。</li>
+<li>构建时：在 PC 上一次性渲染成纯 HTML + CSS。</li>
+<li>运行时：产物就是一堆文件，<strong>完全不需要 Node</strong>。</li>
+</ul>
+<p>这是 Astro 相比 Nuxt / Next 最关键的差异——后两者的默认心智模型是「要有一个 Node 服务在跑」，而 Astro 的默认输出是静态文件。</p>
+<blockquote>
+<p>判断标准很简单：<strong>如果页面在构建时就能确定内容，它就不该在运行时被渲染。</strong> 博客、文档、项目展示页全都属于这一类。</p>
+</blockquote>
+<h2 id="如果将来必须动态">如果将来必须动态</h2>
+<p>不是永远不需要动态。如果后面要加「板子实时状态」，也不必拆掉静态架构，有三条递增成本的路径：</p>
+<ol>
+<li><strong>定时生成 JSON</strong>：用 systemd timer 每 10 秒把 <code>/proc</code> 里的数据写成 <code>status.json</code>，前端 fetch。零常驻进程。</li>
+<li><strong>CGI</strong>：<code>nginx + fcgiwrap</code> 调一个 shell 脚本，开销 &#x3C; 1MB。对本项目足够。</li>
+<li><strong>Go 单二进制</strong>：真要写接口时首选，交叉编译一条命令，常驻 10–20MB。</li>
+</ol>
+<h2 id="结论">结论</h2>
+<p><strong>静态文件 + Nginx，不是妥协，而是这个约束下唯一的正解。</strong> 全站 HTML+CSS 压缩后不到 40KB，Nginx 常驻 3.2MB，这套数字本身就是项目的一部分成果——后面在「性能实测」里会给出对比数据。</p> </article> <aside class="side" data-astro-cid-fezs4xpw> <h4 data-astro-cid-fezs4xpw>文章信息</h4> <dl data-astro-cid-fezs4xpw> <dt data-astro-cid-fezs4xpw>日期</dt><dd data-astro-cid-fezs4xpw>2026.11.05</dd> <dt data-astro-cid-fezs4xpw>阅读</dt><dd data-astro-cid-fezs4xpw>7 分钟</dd> <dt data-astro-cid-fezs4xpw>分类</dt><dd data-astro-cid-fezs4xpw>技术选型</dd> </dl> <h4 style="margin-top:22px;" data-astro-cid-fezs4xpw>全部文章</h4> <ul class="side-links" data-astro-cid-fezs4xpw> <li data-astro-cid-fezs4xpw><a href="/notes/01-static-first/" data-astro-cid-fezs4xpw>静态优先的选型推导 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/02-frp-tunnel/" data-astro-cid-fezs4xpw>内网穿透与 frp 落地 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/03-build-vs-runtime/" data-astro-cid-fezs4xpw>Astro 与 Vue/React 的差别 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/04-performance/" data-astro-cid-fezs4xpw>x86 与 i.MX6ULL 性能实测 <span data-astro-cid-fezs4xpw>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-fezs4xpw> <div data-astro-cid-fezs4xpw></div> <div class="pager__next" data-astro-cid-fezs4xpw> <a href="/notes/02-frp-tunnel/" data-astro-cid-fezs4xpw>内网穿透方案对比与 frp 落地 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 

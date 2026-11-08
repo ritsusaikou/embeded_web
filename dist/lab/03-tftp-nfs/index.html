@@ -1,0 +1,77 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>TFTP 与 NFS 网络环境搭建 · 嵌入式系统课程项目站</title><meta name="description" content="用 TFTP 让 u-boot 从网络取内核与设备树，用 NFS 直接挂载根文件系统，从此改代码不再需要反复插拔 TF 卡。"><link rel="canonical" href="https://board.nexuslink.icu/lab/03-tftp-nfs/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="TFTP 与 NFS 网络环境搭建 · 嵌入式系统课程项目站"><meta property="og:description" content="用 TFTP 让 u-boot 从网络取内核与设备树，用 NFS 直接挂载根文件系统，从此改代码不再需要反复插拔 TF 卡。"><meta property="og:url" content="https://board.nexuslink.icu/lab/03-tftp-nfs/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-tvauolgf] li[data-astro-cid-tvauolgf]+li[data-astro-cid-tvauolgf]{margin-top:10px}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]{display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-2)}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]:hover{color:var(--brand)}.pager[data-astro-cid-tvauolgf]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/" aria-current="page"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-tvauolgf> <div class="container" data-astro-cid-tvauolgf> <div class="crumbs" data-astro-cid-tvauolgf> <a href="/" data-astro-cid-tvauolgf>首页</a><span data-astro-cid-tvauolgf>/</span><a href="/lab/" data-astro-cid-tvauolgf>实验日志</a><span data-astro-cid-tvauolgf>/</span> <span data-astro-cid-tvauolgf>L03</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:22em;" data-astro-cid-tvauolgf>TFTP 与 NFS 网络环境搭建</h1> <p data-astro-cid-tvauolgf>用 TFTP 让 u-boot 从网络取内核与设备树，用 NFS 直接挂载根文件系统，从此改代码不再需要反复插拔 TF 卡。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-tvauolgf> <span class="badge badge--ok" data-astro-cid-tvauolgf>第三次</span> <span class="tag" data-astro-cid-tvauolgf>TFTP</span><span class="tag" data-astro-cid-tvauolgf>NFS</span><span class="tag" data-astro-cid-tvauolgf>u-boot</span><span class="tag" data-astro-cid-tvauolgf>网络调试</span> </div> </div> </section> <div class="container" data-astro-cid-tvauolgf> <div class="detail" data-astro-cid-tvauolgf> <article class="prose" data-astro-cid-tvauolgf> <h2 id="实验目的">实验目的</h2>
+<ol>
+<li>掌握 TFTP 与 NFS 两种网络服务的工作原理与配置方法。</li>
+<li>让 u-boot 通过 TFTP 加载 <code>zImage</code> 与 <code>.dtb</code>，实现内核免烧写更新。</li>
+<li>让内核通过 NFS 挂载根文件系统，实现应用层「保存即生效」的开发闭环。</li>
+</ol>
+<h2 id="实验环境">实验环境</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>角色</th><th>IP</th><th>说明</th></tr></thead><tbody><tr><td>宿主机（Ubuntu）</td><td>192.168.1.100</td><td>兼作 TFTP / NFS 服务器</td></tr><tr><td>开发板</td><td>192.168.1.50</td><td>与宿主机同网段，桥接模式</td></tr></tbody></table>
+<p>服务：<code>tftpd-hpa</code>（UDP 69）、<code>nfs-kernel-server</code>（TCP 2049）。</p>
+<h2 id="原理与要点">原理与要点</h2>
+<ul>
+<li><strong>TFTP</strong> 是基于 UDP 69 的极简文件传输协议，实现短、无认证，正好适合 u-boot 阶段——此时还没有完整网络栈。它解决「<strong>内核镜像和设备树怎么进板子</strong>」。</li>
+<li><strong>NFS</strong> 是网络文件系统，内核把远端目录当本地目录挂载。它解决「<strong>根文件系统怎么进板子</strong>」，改一个文件不用重新打包镜像。</li>
+</ul>
+<p>两者合起来，整个开发流程从「改代码 → 编译 → 烧卡 → 上电」变成「改代码 → 编译 → 敲一行命令」。</p>
+<h2 id="实验步骤">实验步骤</h2>
+<h3 id="1-宿主机配置-tftp">1. 宿主机配置 TFTP</h3>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> apt</span><span style="color:#9ECBFF"> install</span><span style="color:#9ECBFF"> tftp-hpa</span><span style="color:#9ECBFF"> tftpd-hpa</span></span>
+<span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> vi</span><span style="color:#9ECBFF"> /etc/default/tftpd-hpa</span></span>
+<span class="line"><span style="color:#6A737D"># TFTP_DIRECTORY="/home/user/tftpboot"</span></span>
+<span class="line"><span style="color:#6A737D"># TFTP_OPTIONS="-l -c -s"</span></span>
+<span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> chmod</span><span style="color:#79B8FF"> 777</span><span style="color:#9ECBFF"> /home/user/tftpboot</span></span>
+<span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> systemctl</span><span style="color:#9ECBFF"> restart</span><span style="color:#9ECBFF"> tftpd-hpa</span></span></code></pre>
+<h3 id="2-宿主机配置-nfs">2. 宿主机配置 NFS</h3>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> apt</span><span style="color:#9ECBFF"> install</span><span style="color:#9ECBFF"> nfs-kernel-server</span></span>
+<span class="line"><span style="color:#6A737D"># /etc/exports 追加：</span></span>
+<span class="line"><span style="color:#6A737D"># /home/user/nfs/rootfs *(rw,sync,no_subtree_check,no_root_squash)</span></span>
+<span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> exportfs</span><span style="color:#79B8FF"> -arv</span></span>
+<span class="line"><span style="color:#B392F0">sudo</span><span style="color:#9ECBFF"> systemctl</span><span style="color:#9ECBFF"> restart</span><span style="color:#9ECBFF"> nfs-kernel-server</span></span></code></pre>
+<h3 id="3-u-boot-侧配置">3. u-boot 侧配置</h3>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>setenv ipaddr 192.168.1.50</span></span>
+<span class="line"><span>setenv serverip 192.168.1.100</span></span>
+<span class="line"><span>setenv gatewayip 192.168.1.1</span></span>
+<span class="line"><span>setenv bootargs 'console=ttymxc0,115200 root=/dev/nfs rw nfsroot=192.168.1.100:/home/user/nfs/rootfs,proto=tcp ip=192.168.1.50:192.168.1.100:192.168.1.1:255.255.255.0::eth0:off'</span></span>
+<span class="line"><span>saveenv</span></span>
+<span class="line"><span>ping 192.168.1.100</span></span></code></pre>
+<h3 id="4-网络启动内核">4. 网络启动内核</h3>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>tftp 80800000 zImage</span></span>
+<span class="line"><span>tftp 83000000 imx6ull-alientek-emmc.dtb</span></span>
+<span class="line"><span>bootz 80800000 - 83000000</span></span></code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p><code>ping</code> 通服务器后，TFTP 每次传输显示进度与速率（约 1MB/s，百兆网口受 CPU 限制）；内核启动日志末尾出现：</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>VFS: Mounted root (nfs filesystem) on device 0:15.</span></span></code></pre>
+<p>说明根文件系统已通过网络挂载。此时在宿主机 <code>rootfs</code> 目录下新增一个脚本，板子上刷新即见，验证了「保存即生效」。</p>
+<h2 id="问题与解决">问题与解决</h2>
+<p><strong>虚拟机 NAT 模式完全不通。</strong> NAT 下虚拟机在另一层子网，板子 ping 不到。改成<strong>桥接模式</strong>并手动指定静态 IP，问题消失。这是本实验耗时最久的坑，属于网络拓扑问题而不是服务配置问题。</p>
+<p><strong>NFS 挂载超时。</strong> 内核日志反复 <code>portmapper: no response</code>。原因是 Ubuntu 默认走 NFSv4，而 4.1.15 老内核的客户端与新版服务端协商失败。加 <code>proto=tcp</code> 并显式指定 <code>nfsvers=3</code> 后正常。</p>
+<p><strong>TFTP 报 <code>Permission denied</code>。</strong> 上传/下载目录权限不足。<code>-c</code> 参数允许创建文件，目录本身还需 <code>chmod 777</code>。</p>
+<p><strong>bootargs 写错导致根文件系统找不到。</strong> 注意 <code>nfsroot=</code> 里的 IP 是<strong>服务器</strong>的，而 <code>ip=</code> 的顺序是 <code>本机:服务器:网关:掩码</code>，写反会卡在 <code>Waiting for root device</code>。</p>
+<h2 id="小结">小结</h2>
+<p>这次实验把「开发迭代成本」降了一个数量级。更重要的是理解了嵌入式开发的分层调试手段：<strong>u-boot 阶段用 TFTP 换内核，内核阶段用 NFS 换 rootfs，应用阶段用 scp 换程序</strong>。后面写驱动、调 Qt 应用，全靠这套环境在撑着。</p> </article> <aside class="side" data-astro-cid-tvauolgf> <h4 data-astro-cid-tvauolgf>实验信息</h4> <dl data-astro-cid-tvauolgf> <dt data-astro-cid-tvauolgf>序号</dt><dd data-astro-cid-tvauolgf>第 3 次</dd> <dt data-astro-cid-tvauolgf>日期</dt><dd data-astro-cid-tvauolgf>2026.10.08</dd> <dt data-astro-cid-tvauolgf>学时</dt><dd data-astro-cid-tvauolgf>4 学时</dd> <dt data-astro-cid-tvauolgf>状态</dt><dd data-astro-cid-tvauolgf>已完成</dd> </dl>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>硬件</h4> <div class="card__tags" data-astro-cid-tvauolgf> <span class="tag" data-astro-cid-tvauolgf>i.MX6ULL 开发板</span><span class="tag" data-astro-cid-tvauolgf>网线</span><span class="tag" data-astro-cid-tvauolgf>路由器</span> </div>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>相关链接</h4> <ul class="side-links" data-astro-cid-tvauolgf> <li data-astro-cid-tvauolgf><a href="/docs/" data-astro-cid-tvauolgf>系统设计文档 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/source/" data-astro-cid-tvauolgf>源码与产物 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/notes/" data-astro-cid-tvauolgf>技术选型 <span data-astro-cid-tvauolgf>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-tvauolgf> <div data-astro-cid-tvauolgf> <a href="/lab/02-baremetal-led/" data-astro-cid-tvauolgf>
+← 上一次 · 裸机 LED 驱动实验 </a> </div> <div class="pager__next" data-astro-cid-tvauolgf> <a href="/lab/04-beep-driver/" data-astro-cid-tvauolgf>下一次 · 嵌入式 Linux 蜂鸣器驱动实验 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 

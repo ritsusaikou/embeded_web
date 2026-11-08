@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>嵌入式 Linux 开发环境搭建与简单应用程序编写 · 嵌入式系统课程项目站</title><meta name="description" content="在 Ubuntu 上装好交叉工具链与串口终端，完成第一个 ARM 程序的编译、传输、运行，把「宿主机 / 目标机」这条链路彻底打通。"><link rel="canonical" href="https://board.nexuslink.icu/lab/01-env/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="嵌入式 Linux 开发环境搭建与简单应用程序编写 · 嵌入式系统课程项目站"><meta property="og:description" content="在 Ubuntu 上装好交叉工具链与串口终端，完成第一个 ARM 程序的编译、传输、运行，把「宿主机 / 目标机」这条链路彻底打通。"><meta property="og:url" content="https://board.nexuslink.icu/lab/01-env/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-tvauolgf] li[data-astro-cid-tvauolgf]+li[data-astro-cid-tvauolgf]{margin-top:10px}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]{display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-2)}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]:hover{color:var(--brand)}.pager[data-astro-cid-tvauolgf]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/" aria-current="page"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-tvauolgf> <div class="container" data-astro-cid-tvauolgf> <div class="crumbs" data-astro-cid-tvauolgf> <a href="/" data-astro-cid-tvauolgf>首页</a><span data-astro-cid-tvauolgf>/</span><a href="/lab/" data-astro-cid-tvauolgf>实验日志</a><span data-astro-cid-tvauolgf>/</span> <span data-astro-cid-tvauolgf>L01</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:22em;" data-astro-cid-tvauolgf>嵌入式 Linux 开发环境搭建与简单应用程序编写</h1> <p data-astro-cid-tvauolgf>在 Ubuntu 上装好交叉工具链与串口终端，完成第一个 ARM 程序的编译、传输、运行，把「宿主机 / 目标机」这条链路彻底打通。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-tvauolgf> <span class="badge badge--ok" data-astro-cid-tvauolgf>第一次</span> <span class="tag" data-astro-cid-tvauolgf>环境搭建</span><span class="tag" data-astro-cid-tvauolgf>交叉编译</span><span class="tag" data-astro-cid-tvauolgf>串口调试</span> </div> </div> </section> <div class="container" data-astro-cid-tvauolgf> <div class="detail" data-astro-cid-tvauolgf> <article class="prose" data-astro-cid-tvauolgf> <h2 id="实验目的">实验目的</h2>
+<ol>
+<li>建立「宿主机编译、目标机运行」的交叉开发模型，理解交叉编译与本地编译的区别。</li>
+<li>完成交叉编译工具链、串口终端、网络传输三件基础设施的搭建。</li>
+<li>独立编写、编译并在开发板上运行第一个 ARM Linux 应用程序。</li>
+</ol>
+<h2 id="实验环境">实验环境</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>项目</th><th>说明</th></tr></thead><tbody><tr><td>宿主机</td><td>Ubuntu 20.04 LTS（VMware，4 核 / 4GB）</td></tr><tr><td>目标机</td><td>i.MX6ULL 开发板，出厂 Linux 4.1.15</td></tr><tr><td>工具链</td><td><code>gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf</code></td></tr><tr><td>连接方式</td><td>USB 转串口（115200 8N1）+ 网线（与宿主机同网段）</td></tr></tbody></table>
+<h2 id="原理与要点">原理与要点</h2>
+<p>宿主机是 x86_64，目标机是 ARMv7。两者的指令集、字长、ABI 都不同，<strong>x86 上编译出来的程序在板子上无法执行</strong>。交叉编译工具链（前缀 <code>arm-linux-gnueabihf-</code>）内部包含面向 ARM 的编译器、汇编器、链接器和一套 ARM 版 glibc，因此能在 x86 上产出 ARM 可执行文件。</p>
+<p>判断一个文件是不是能跑在板子上，看两个地方：</p>
+<ul>
+<li><code>file hello</code> 的 <code>ELF 32-bit LSB executable, ARM, EABI5</code>；</li>
+<li><code>readelf -l hello</code> 的 interpreter 字段（动态链接时指向目标机 rootfs 里的 <code>ld-linux-armhf.so.3</code>）。</li>
+</ul>
+<h2 id="实验步骤">实验步骤</h2>
+<ol>
+<li>解压工具链到 <code>/usr/local/arm/</code>，把 <code>bin</code> 目录加入 <code>PATH</code>，执行 <code>arm-linux-gnueabihf-gcc -v</code> 确认版本。</li>
+<li>编写 <code>hello.c</code>，编译并检查 ELF 属性。</li>
+<li>通过 <code>scp</code> 传到开发板（本实验先走网络传输，TFTP / NFS 在第三次实验专门搭建）。</li>
+<li>串口终端里 <code>chmod +x hello &#x26;&#x26; ./hello</code>。</li>
+</ol>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">tar</span><span style="color:#79B8FF"> -xf</span><span style="color:#9ECBFF"> gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf.tar.xz</span><span style="color:#79B8FF"> -C</span><span style="color:#9ECBFF"> /usr/local/arm</span></span>
+<span class="line"><span style="color:#F97583">export</span><span style="color:#E1E4E8"> PATH</span><span style="color:#F97583">=</span><span style="color:#E1E4E8">$PATH:/usr/local/arm/gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf/bin</span></span>
+<span class="line"><span style="color:#B392F0">arm-linux-gnueabihf-gcc</span><span style="color:#79B8FF"> -v</span></span></code></pre>
+<h2 id="关键代码">关键代码</h2>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="c"><code><span class="line"><span style="color:#F97583">#include</span><span style="color:#9ECBFF"> &#x3C;stdio.h></span></span>
+<span class="line"><span style="color:#F97583">#include</span><span style="color:#9ECBFF"> &#x3C;sys/utsname.h></span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F97583">int</span><span style="color:#B392F0"> main</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">void</span><span style="color:#E1E4E8">)</span></span>
+<span class="line"><span style="color:#E1E4E8">{</span></span>
+<span class="line"><span style="color:#F97583">    struct</span><span style="color:#E1E4E8"> utsname u;</span></span>
+<span class="line"><span style="color:#B392F0">    uname</span><span style="color:#E1E4E8">(</span><span style="color:#F97583">&#x26;</span><span style="color:#E1E4E8">u);</span></span>
+<span class="line"><span style="color:#B392F0">    printf</span><span style="color:#E1E4E8">(</span><span style="color:#9ECBFF">"Hello from </span><span style="color:#79B8FF">%s\n</span><span style="color:#9ECBFF">"</span><span style="color:#E1E4E8">, u.nodename);</span></span>
+<span class="line"><span style="color:#B392F0">    printf</span><span style="color:#E1E4E8">(</span><span style="color:#9ECBFF">"machine = </span><span style="color:#79B8FF">%s</span><span style="color:#9ECBFF">, release = </span><span style="color:#79B8FF">%s\n</span><span style="color:#9ECBFF">"</span><span style="color:#E1E4E8">, u.machine, u.release);</span></span>
+<span class="line"><span style="color:#F97583">    return</span><span style="color:#79B8FF"> 0</span><span style="color:#E1E4E8">;</span></span>
+<span class="line"><span style="color:#E1E4E8">}</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">arm-linux-gnueabihf-gcc</span><span style="color:#9ECBFF"> hello.c</span><span style="color:#79B8FF"> -o</span><span style="color:#9ECBFF"> hello</span><span style="color:#79B8FF"> -static</span></span>
+<span class="line"><span style="color:#B392F0">file</span><span style="color:#9ECBFF"> hello</span></span>
+<span class="line"><span style="color:#6A737D"># hello: ELF 32-bit LSB executable, ARM, EABI5 version 1 (SYSV), statically linked</span></span></code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p>串口终端输出：</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>Hello from imx6ull-alpha</span></span>
+<span class="line"><span>machine = armv7l, release = 4.1.15</span></span></code></pre>
+<p><code>machine</code> 为 <code>armv7l</code>，确认程序确实运行在 ARM 内核上，不是被误传到宿主机执行。</p>
+<h2 id="问题与解决">问题与解决</h2>
+<p><strong>动态链接版本不匹配。</strong> 第一次没用 <code>-static</code>，板子上直接报 <code>-sh: ./hello: not found</code>——这个提示具有极强误导性，它其实是<strong>解释器缺失</strong>（<code>ld-linux-armhf.so.3</code> 不存在或版本低于工具链要求的 GLIBC），不是文件不存在。用 <code>readelf -l hello</code> 查 interpreter 才定位到原因。解决办法两种：加 <code>-static</code> 静态链接，或把工具链对应的 lib 同步到板子并设 <code>LD_LIBRARY_PATH</code>。第一阶段统一用静态链接，排除 rootfs 差异。</p>
+<p><strong>串口一直无输出。</strong> 排查顺序：确认设备节点（Windows 下 COM 口、Linux 下 <code>/dev/ttyUSB0</code>）、波特率 115200、8 数据位无校验、关闭流控。当时是 minicom 开了硬件流控导致能连上但收不到字符。</p>
+<p><strong>权限问题。</strong> <code>/dev/ttyUSB0</code> 默认属于 <code>dialout</code> 组，普通用户需要 <code>sudo usermod -aG dialout $USER</code> 后重新登录。</p>
+<h2 id="小结">小结</h2>
+<p>这次实验本身没有难度，但它决定了后面所有实验的效率。真正的收获是形成了固定判断链路：<strong>程序跑不起来先看 <code>file</code> / <code>readelf</code>，再看 rootfs 的库，最后才怀疑代码。</strong> 后面编译内核、写驱动时这套排查顺序一直沿用。</p> </article> <aside class="side" data-astro-cid-tvauolgf> <h4 data-astro-cid-tvauolgf>实验信息</h4> <dl data-astro-cid-tvauolgf> <dt data-astro-cid-tvauolgf>序号</dt><dd data-astro-cid-tvauolgf>第 1 次</dd> <dt data-astro-cid-tvauolgf>日期</dt><dd data-astro-cid-tvauolgf>2026.09.17</dd> <dt data-astro-cid-tvauolgf>学时</dt><dd data-astro-cid-tvauolgf>4 学时</dd> <dt data-astro-cid-tvauolgf>状态</dt><dd data-astro-cid-tvauolgf>已完成</dd> </dl>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>硬件</h4> <div class="card__tags" data-astro-cid-tvauolgf> <span class="tag" data-astro-cid-tvauolgf>i.MX6ULL 开发板</span><span class="tag" data-astro-cid-tvauolgf>USB 转串口模块</span><span class="tag" data-astro-cid-tvauolgf>网线</span> </div>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>相关链接</h4> <ul class="side-links" data-astro-cid-tvauolgf> <li data-astro-cid-tvauolgf><a href="/docs/" data-astro-cid-tvauolgf>系统设计文档 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/source/" data-astro-cid-tvauolgf>源码与产物 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/notes/" data-astro-cid-tvauolgf>技术选型 <span data-astro-cid-tvauolgf>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-tvauolgf> <div data-astro-cid-tvauolgf>  </div> <div class="pager__next" data-astro-cid-tvauolgf> <a href="/lab/02-baremetal-led/" data-astro-cid-tvauolgf>下一次 · 裸机 LED 驱动实验 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 

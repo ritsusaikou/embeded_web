@@ -1,8 +1,9 @@
 {
-  "name": "light-blog",
+  "name": "imx6ull-project-site",
   "type": "module",
-  "version": "1.0.0",
-  "description": "A featherweight static blog for a 512MB Linux box",
+  "version": "2.0.0",
+  "private": true,
+  "description": "嵌入式系统课程项目站：跑在 i.MX6ULL（512MB）上的静态站点，经 frp 反向隧道发布到公网域名",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>嵌入式 Linux 音频设备驱动实验 · 嵌入式系统课程项目站</title><meta name="description" content="理解 ASoC 的 Machine / Platform / Codec 三层结构，配好 WM8960 的设备树 sound 节点，用 ALSA 完成一次录音与回放。"><link rel="canonical" href="https://board.nexuslink.icu/lab/05-audio-driver/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="嵌入式 Linux 音频设备驱动实验 · 嵌入式系统课程项目站"><meta property="og:description" content="理解 ASoC 的 Machine / Platform / Codec 三层结构，配好 WM8960 的设备树 sound 节点，用 ALSA 完成一次录音与回放。"><meta property="og:url" content="https://board.nexuslink.icu/lab/05-audio-driver/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-tvauolgf] li[data-astro-cid-tvauolgf]+li[data-astro-cid-tvauolgf]{margin-top:10px}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]{display:flex;justify-content:space-between;font-size:13.5px;color:var(--ink-2)}.side-links[data-astro-cid-tvauolgf] a[data-astro-cid-tvauolgf]:hover{color:var(--brand)}.pager[data-astro-cid-tvauolgf]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/" aria-current="page"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-tvauolgf> <div class="container" data-astro-cid-tvauolgf> <div class="crumbs" data-astro-cid-tvauolgf> <a href="/" data-astro-cid-tvauolgf>首页</a><span data-astro-cid-tvauolgf>/</span><a href="/lab/" data-astro-cid-tvauolgf>实验日志</a><span data-astro-cid-tvauolgf>/</span> <span data-astro-cid-tvauolgf>L05</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:22em;" data-astro-cid-tvauolgf>嵌入式 Linux 音频设备驱动实验</h1> <p data-astro-cid-tvauolgf>理解 ASoC 的 Machine / Platform / Codec 三层结构，配好 WM8960 的设备树 sound 节点，用 ALSA 完成一次录音与回放。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-tvauolgf> <span class="badge badge--ok" data-astro-cid-tvauolgf>第五次</span> <span class="tag" data-astro-cid-tvauolgf>ASoC</span><span class="tag" data-astro-cid-tvauolgf>WM8960</span><span class="tag" data-astro-cid-tvauolgf>ALSA</span><span class="tag" data-astro-cid-tvauolgf>设备树</span><span class="tag" data-astro-cid-tvauolgf>I2S</span> </div> </div> </section> <div class="container" data-astro-cid-tvauolgf> <div class="detail" data-astro-cid-tvauolgf> <article class="prose" data-astro-cid-tvauolgf> <h2 id="实验目的">实验目的</h2>
+<ol>
+<li>理解 ASoC（ALSA System on Chip）的分层设计：Machine、Platform、Codec 各自职责。</li>
+<li>掌握音频链路上「控制通道」与「数据通道」的区别：I2C 配寄存器、SAI/I2S 走音频流。</li>
+<li>通过设备树描述板级连接，用 <code>aplay</code> / <code>arecord</code> / <code>amixer</code> 验证驱动。</li>
+</ol>
+<h2 id="实验环境">实验环境</h2>
+<ul>
+<li>Codec：WM8960，I2C2 控制（地址 <code>0x1a</code>），SAI2 传数据，MCLK 24MHz。</li>
+<li>内核配置需打开：<code>CONFIG_SND_SOC_WM8960</code>、<code>CONFIG_SND_SOC_FSL_SAI</code>、<code>CONFIG_SND_SOC_IMX_WM8960</code>。</li>
+</ul>
+<h2 id="原理与要点">原理与要点</h2>
+<p>音频在 Linux 里被拆成三层，第一次看很容易晕，其实各管一件事：</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>层次</th><th>负责</th><th>在本实验中的实体</th></tr></thead><tbody><tr><td>Platform（CPU 侧）</td><td>把内存里的 PCM 数据搬到音频接口</td><td><code>sai2</code> DAI，DMA 搬运</td></tr><tr><td>Codec（芯片侧）</td><td>数模转换、音量、通路开关</td><td>WM8960，I2C 配置寄存器</td></tr><tr><td>Machine（板级）</td><td>把上面两者连起来，声明板上有哪些器件</td><td>设备树 <code>sound</code> 节点</td></tr></tbody></table>
+<p>设备树里的 <code>audio-routing</code> 决定「声音从哪个物理口出来」，如果不写或者写错，驱动照样加载成功，但耳机没声——这是音频调试里最典型的「静默失败」。</p>
+<h2 id="关键代码">关键代码</h2>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="plaintext"><code><span class="line"><span>sound {</span></span>
+<span class="line"><span>    compatible = "fsl,imx-audio-wm8960";</span></span>
+<span class="line"><span>    model = "wm8960-audio";</span></span>
+<span class="line"><span>    audio-cpu = &#x3C;&#x26;sai2>;</span></span>
+<span class="line"><span>    audio-codec = &#x3C;&#x26;codec>;</span></span>
+<span class="line"><span>    audio-routing =</span></span>
+<span class="line"><span>        "Headphone Jack", "HP_L",</span></span>
+<span class="line"><span>        "Headphone Jack", "HP_R",</span></span>
+<span class="line"><span>        "Ext Spk", "SPK_LP",</span></span>
+<span class="line"><span>        "Ext Spk", "SPK_LN",</span></span>
+<span class="line"><span>        "Ext Spk", "SPK_RP",</span></span>
+<span class="line"><span>        "Ext Spk", "SPK_RN",</span></span>
+<span class="line"><span>        "LINPUT1", "Main Mic",</span></span>
+<span class="line"><span>        "MICB", "Main Mic";</span></span>
+<span class="line"><span>    hp-det-gpios = &#x3C;&#x26;gpio5 5 GPIO_ACTIVE_LOW>;</span></span>
+<span class="line"><span>    mux-int-port = &#x3C;2>;</span></span>
+<span class="line"><span>    mux-ext-port = &#x3C;3>;</span></span>
+<span class="line"><span>};</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">cat</span><span style="color:#9ECBFF"> /proc/asound/cards</span><span style="color:#6A737D">          # 应出现 wm8960-audio</span></span>
+<span class="line"><span style="color:#B392F0">aplay</span><span style="color:#79B8FF"> -l</span><span style="color:#6A737D">                        # 列出 playback 设备</span></span>
+<span class="line"><span style="color:#B392F0">amixer</span><span style="color:#79B8FF"> -c</span><span style="color:#79B8FF"> 0</span><span style="color:#9ECBFF"> sset</span><span style="color:#9ECBFF"> 'Headphone'</span><span style="color:#9ECBFF"> 100%</span><span style="color:#9ECBFF"> on</span></span>
+<span class="line"><span style="color:#B392F0">amixer</span><span style="color:#79B8FF"> -c</span><span style="color:#79B8FF"> 0</span><span style="color:#9ECBFF"> sset</span><span style="color:#9ECBFF"> 'Speaker'</span><span style="color:#9ECBFF">   100%</span><span style="color:#9ECBFF"> on</span></span>
+<span class="line"><span style="color:#B392F0">aplay</span><span style="color:#79B8FF"> -f</span><span style="color:#9ECBFF"> cd</span><span style="color:#9ECBFF"> /root/test.wav</span><span style="color:#6A737D">      # 16bit 44.1kHz 立体声</span></span>
+<span class="line"><span style="color:#B392F0">arecord</span><span style="color:#79B8FF"> -d</span><span style="color:#79B8FF"> 5</span><span style="color:#79B8FF"> -f</span><span style="color:#9ECBFF"> cd</span><span style="color:#79B8FF"> -r</span><span style="color:#79B8FF"> 44100</span><span style="color:#9ECBFF"> /root/rec.wav</span></span>
+<span class="line"><span style="color:#B392F0">aplay</span><span style="color:#9ECBFF"> /root/rec.wav</span></span></code></pre>
+<h2 id="实验结果">实验结果</h2>
+<p><code>/proc/asound/cards</code> 正确识别声卡，耳机里能听到测试音频；录音 5 秒回放清晰可辨，采样率 44.1kHz、双声道、无爆音。<code>amixer contents</code> 可见 DAC / ADC / HP / SPK 各路增益均可调。</p>
+<h2 id="问题与解决">问题与解决</h2>
+<p><strong>驱动加载成功但完全没声音。</strong> 这是本次耗时最长的问题，排查分三步：先 <code>cat /proc/asound/cards</code> 确认声卡存在；再 <code>amixer contents</code> 发现 DAC 与 HP 通路都是 <code>off</code>；最后把 <code>Headphone</code>、<code>Speaker</code>、<code>Playback</code> 逐个 <code>on</code> 并调增益，声音出现。结论：<strong>Codec 默认是静音状态，驱动 probe 成功 ≠ 出声</strong>。</p>
+<p><strong><code>i2cdetect</code> 扫不到 0x1a。</strong> 说明 CPU 根本没和 Codec 通信。检查两点：I2C2 的 pinctrl 是否配好、MCLK 是否真的在输出（SAI2 的 <code>mclk</code> 需要 <code>assigned-clocks</code> 配置），MCLK 缺失时 Codec 内部 PLL 起不来，自然不应答。</p>
+<p><strong>录音有杂音、播放速度不对。</strong> 采样率不匹配。<code>aplay</code> 默认参数与 wav 头不一致时会重采样并产生杂音，显式指定 <code>-f cd -r 44100 -c 2</code> 后正常。速度不对则是 MCLK 与 sysclk 配比问题，与采样率参数无关。</p>
+<p><strong>耳机检测极性反了。</strong> <code>hp-det-gpios</code> 的 <code>GPIO_ACTIVE_LOW</code> 与实际电路相反，导致插耳机时系统认为在拔出状态、切到扬声器。对照原理图改极性即可。</p>
+<h2 id="小结">小结</h2>
+<p>音频驱动看起来复杂，但一旦接受「三层各管一件事」的划分，就看得很清楚：数据走 DMA 到 SAI 到 Codec，控制走 I2C 到 Codec 寄存器，板级差异全在 <code>sound</code> 节点里。这次实验也让我第一次体会到<strong>设备树写错不会报错、只会不工作</strong>这件事的威力——后来我给整个 dts 加了注释，把每个 <code>audio-routing</code> 对应的物理接口标上。</p> </article> <aside class="side" data-astro-cid-tvauolgf> <h4 data-astro-cid-tvauolgf>实验信息</h4> <dl data-astro-cid-tvauolgf> <dt data-astro-cid-tvauolgf>序号</dt><dd data-astro-cid-tvauolgf>第 5 次</dd> <dt data-astro-cid-tvauolgf>日期</dt><dd data-astro-cid-tvauolgf>2026.10.22</dd> <dt data-astro-cid-tvauolgf>学时</dt><dd data-astro-cid-tvauolgf>4 学时</dd> <dt data-astro-cid-tvauolgf>状态</dt><dd data-astro-cid-tvauolgf>已完成</dd> </dl>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>硬件</h4> <div class="card__tags" data-astro-cid-tvauolgf> <span class="tag" data-astro-cid-tvauolgf>i.MX6ULL 开发板</span><span class="tag" data-astro-cid-tvauolgf>WM8960 Codec</span><span class="tag" data-astro-cid-tvauolgf>耳机</span><span class="tag" data-astro-cid-tvauolgf>麦克风</span> </div>  <h4 style="margin-top:22px;" data-astro-cid-tvauolgf>相关链接</h4> <ul class="side-links" data-astro-cid-tvauolgf> <li data-astro-cid-tvauolgf><a href="/docs/" data-astro-cid-tvauolgf>系统设计文档 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/source/" data-astro-cid-tvauolgf>源码与产物 <span data-astro-cid-tvauolgf>→</span></a></li> <li data-astro-cid-tvauolgf><a href="/notes/" data-astro-cid-tvauolgf>技术选型 <span data-astro-cid-tvauolgf>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-tvauolgf> <div data-astro-cid-tvauolgf> <a href="/lab/04-beep-driver/" data-astro-cid-tvauolgf>
+← 上一次 · 嵌入式 Linux 蜂鸣器驱动实验 </a> </div> <div class="pager__next" data-astro-cid-tvauolgf> <a href="/lab/06-qt-file-io/" data-astro-cid-tvauolgf>下一次 · Qt 文本读写实验 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 

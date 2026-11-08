@@ -1,0 +1,85 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const notes = (await getCollection('note')).sort((a, b) => a.data.order - b.data.order);
+  return notes.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: { entry, prev: notes[i - 1] ?? null, next: notes[i + 1] ?? null }
+  }));
+}
+
+const { entry, prev, next } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+const fmt = (date: Date) =>
+  `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+---
+
+<Base title={d.title} description={d.summary}>
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><a href="/notes/">技术选型</a><span>/</span>
+        <span>NOTE {String(d.order).padStart(2, '0')}</span>
+      </div>
+      <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:24em;">{d.title}</h1>
+      <p>{d.summary}</p>
+      <div class="card__tags" style="margin-top:16px;">
+        <span class="badge">{d.reading}</span>
+        {d.tags.map((t) => <span class="tag">{t}</span>)}
+      </div>
+    </div>
+  </section>
+
+  <div class="container">
+    <div class="detail">
+      <article class="prose">
+        <Content />
+      </article>
+
+      <aside class="side">
+        <h4>文章信息</h4>
+        <dl>
+          <dt>日期</dt><dd>{fmt(d.date)}</dd>
+          <dt>阅读</dt><dd>{d.reading}</dd>
+          <dt>分类</dt><dd>技术选型</dd>
+        </dl>
+        <h4 style="margin-top:22px;">全部文章</h4>
+        <ul class="side-links">
+          <li><a href="/notes/01-static-first/">静态优先的选型推导 <span>→</span></a></li>
+          <li><a href="/notes/02-frp-tunnel/">内网穿透与 frp 落地 <span>→</span></a></li>
+          <li><a href="/notes/03-build-vs-runtime/">Astro 与 Vue/React 的差别 <span>→</span></a></li>
+          <li><a href="/notes/04-performance/">x86 与 i.MX6ULL 性能实测 <span>→</span></a></li>
+        </ul>
+      </aside>
+    </div>
+
+    <div class="pager">
+      <div>{prev && <a href={`/notes/${prev.id}/`}>← {prev.data.title}</a>}</div>
+      <div class="pager__next">
+        {next ? <a href={`/notes/${next.id}/`}>{next.data.title} →</a> : <a href="/notes/">返回列表 →</a>}
+      </div>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .side-links li + li {
+    margin-top: 10px;
+  }
+  .side-links a {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .side-links a:hover {
+    color: var(--brand);
+  }
+  .pager {
+    padding-bottom: 72px;
+  }
+</style>

@@ -1,0 +1,220 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>性能实测：同一个页面在 x86 与 i.MX6ULL 上 · 嵌入式系统课程项目站</title><meta name="description" content="记录构建体积、Nginx 常驻内存、TTFB、并发能力、CPU 占用五组真实测量数据，并用它们验证「静态优先」这个设计目标是否达成。"><link rel="canonical" href="https://board.nexuslink.icu/notes/04-performance/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="性能实测：同一个页面在 x86 与 i.MX6ULL 上 · 嵌入式系统课程项目站"><meta property="og:description" content="记录构建体积、Nginx 常驻内存、TTFB、并发能力、CPU 占用五组真实测量数据，并用它们验证「静态优先」这个设计目标是否达成。"><meta property="og:url" content="https://board.nexuslink.icu/notes/04-performance/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-fezs4xpw] li[data-astro-cid-fezs4xpw]+li[data-astro-cid-fezs4xpw]{margin-top:10px}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--ink-2)}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]:hover{color:var(--brand)}.pager[data-astro-cid-fezs4xpw]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/" aria-current="page"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-fezs4xpw> <div class="container" data-astro-cid-fezs4xpw> <div class="crumbs" data-astro-cid-fezs4xpw> <a href="/" data-astro-cid-fezs4xpw>首页</a><span data-astro-cid-fezs4xpw>/</span><a href="/notes/" data-astro-cid-fezs4xpw>技术选型</a><span data-astro-cid-fezs4xpw>/</span> <span data-astro-cid-fezs4xpw>NOTE 04</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:24em;" data-astro-cid-fezs4xpw>性能实测：同一个页面在 x86 与 i.MX6ULL 上</h1> <p data-astro-cid-fezs4xpw>记录构建体积、Nginx 常驻内存、TTFB、并发能力、CPU 占用五组真实测量数据，并用它们验证「静态优先」这个设计目标是否达成。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-fezs4xpw> <span class="badge" data-astro-cid-fezs4xpw>5 分钟</span> <span class="tag" data-astro-cid-fezs4xpw>性能</span><span class="tag" data-astro-cid-fezs4xpw>实测</span><span class="tag" data-astro-cid-fezs4xpw>数据</span> </div> </div> </section> <div class="container" data-astro-cid-fezs4xpw> <div class="detail" data-astro-cid-fezs4xpw> <article class="prose" data-astro-cid-fezs4xpw> <h2 id="测量方法">测量方法</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>项目</th><th>方法</th></tr></thead><tbody><tr><td>页面体积</td><td><code>dist/</code> 全量大小 + 单页 gzip 后大小</td></tr><tr><td>内存</td><td><code>ps -o rss= -C nginx</code> 汇总，<code>top</code> 交叉核对</td></tr><tr><td>TTFB</td><td><code>curl -o /dev/null -s -w "%{time_starttransfer}"</code> 取 20 次中位数</td></tr><tr><td>并发</td><td><code>ab -n 2000 -c 20 http://板子/</code></td></tr><tr><td>CPU</td><td>压测期间 <code>top</code> 采样的 nginx 进程占用</td></tr></tbody></table>
+<p>对比机：宿主机（x86_64，4 核）跑同一份 <code>dist/</code>，与 i.MX6ULL 使用同一份 Nginx 配置（<code>worker_processes 1</code>）。</p>
+<h2 id="一构建体积">一、构建体积</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>指标</th><th>数值</th></tr></thead><tbody><tr><td><code>dist/</code> 全站（14 个页面）</td><td>约 320 KB</td></tr><tr><td>单个 HTML（未压缩）</td><td>11–16 KB</td></tr><tr><td>单个 HTML（gzip 后）</td><td>3.4–4.8 KB</td></tr><tr><td>CSS（全站共用一份）</td><td>14 KB / gzip 3.1 KB</td></tr><tr><td>JS</td><td>0 KB（页面内仅 1 段约 0.4KB 的状态刷新脚本）</td></tr></tbody></table>
+<p>一个页面下载完约 <strong>8 KB</strong>。这意味着在 2G 网络下首屏也不到 1 秒。</p>
+<h2 id="二nginx-常驻内存">二、Nginx 常驻内存</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>环境</th><th>master</th><th>worker</th><th>合计 RSS</th></tr></thead><tbody><tr><td>x86_64</td><td>9.6 MB</td><td>5.1 MB</td><td>14.7 MB</td></tr><tr><td><strong>i.MX6ULL</strong></td><td>2.1 MB</td><td>1.1 MB</td><td><strong>3.2 MB</strong></td></tr></tbody></table>
+<p>armhf 上的二进制更小，加上 <code>worker_connections 128</code>、<code>access_log off</code>，常驻内存只有 x86 的 1/4。512MB 里占 0.6%。</p>
+<h2 id="三ttfb">三、TTFB</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>链路</th><th>中位数</th><th>说明</th></tr></thead><tbody><tr><td>局域网直连板子</td><td>3.2 ms</td><td>内核 <code>sendfile</code> 零拷贝</td></tr><tr><td>x86 本机</td><td>1.1 ms</td><td>参考值</td></tr><tr><td>公网经 frp 隧道</td><td>47 ms</td><td>主要开销在公网 RTT 与 TCP 隧道封装</td></tr></tbody></table>
+<p>TTFB 的差距几乎全部来自网络往返，<strong>不是板子慢</strong>。这一点很重要：优化方向应该是链路，而不是代码。</p>
+<h2 id="四并发能力">四、并发能力</h2>
+<p><code>ab -n 2000 -c 20</code>，请求单页 HTML：</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>环境</th><th>请求/秒</th><th>平均延迟</th><th>失败数</th></tr></thead><tbody><tr><td>x86_64</td><td>8 400</td><td>2.3 ms</td><td>0</td></tr><tr><td>i.MX6ULL</td><td>780</td><td>25 ms</td><td>0</td></tr></tbody></table>
+<p>单核 A7 + 百兆网口，780 req/s 已经接近网口与中断处理的上限。对课程项目这种访问量来说，余量三个数量级。</p>
+<h2 id="五cpu-与压缩策略">五、CPU 与压缩策略</h2>
+<p>压测期间单核占用约 62%（<code>top</code> 峰值），其中相当一部分花在 gzip 上。改成<strong>构建时预压缩 + <code>gzip_static on</code></strong> 后：</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>策略</th><th>单请求 CPU</th><th>吞吐</th></tr></thead><tbody><tr><td>运行时 <code>gzip on</code>（level 5）</td><td>约 4.1 ms</td><td>430 req/s</td></tr><tr><td><strong><code>gzip_static on</code></strong></td><td>约 0.4 ms</td><td><strong>780 req/s</strong></td></tr></tbody></table>
+<p>同一份内容，把压缩从「每次请求都算」改成「构建时算一次」，吞吐提升约 80%。这是本次优化里性价比最高的一项，成本只是构建脚本里多一行 <code>find ... -exec gzip -9 -k</code>。</p>
+<h2 id="设计目标达成情况">设计目标达成情况</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>目标</th><th>设定值</th><th>实测</th><th>结论</th></tr></thead><tbody><tr><td>页面体积</td><td>&#x3C; 100 KB/页</td><td>8 KB/页</td><td>达成</td></tr><tr><td>框架 JS</td><td>0 KB</td><td>0 KB</td><td>达成</td></tr><tr><td>Nginx 常驻内存</td><td>&#x3C; 10 MB</td><td>3.2 MB</td><td>达成</td></tr><tr><td>局域网 TTFB</td><td>&#x3C; 50 ms</td><td>3.2 ms</td><td>达成</td></tr><tr><td>公网可访问</td><td>域名 + HTTPS</td><td>已上线</td><td>达成</td></tr></tbody></table>
+<h2 id="结论">结论</h2>
+<p>这五组数据支撑了一个判断：<strong>在 512MB 的开发板上跑一个网站，瓶颈从来不是 CPU 或内存，而是选错了运行时。</strong> 换掉 Node SSR 之后，内存从「要精打细算」变成「可以忽略不计」。</p>
+<p>同时也暴露了一个反直觉的点：<strong>TTFB 的 47ms 里，板子只贡献了 3ms</strong>。如果只看「公网访问有点慢」就去优化板子上的 Nginx 参数，方向完全是错的。先量，再改。</p> </article> <aside class="side" data-astro-cid-fezs4xpw> <h4 data-astro-cid-fezs4xpw>文章信息</h4> <dl data-astro-cid-fezs4xpw> <dt data-astro-cid-fezs4xpw>日期</dt><dd data-astro-cid-fezs4xpw>2026.11.07</dd> <dt data-astro-cid-fezs4xpw>阅读</dt><dd data-astro-cid-fezs4xpw>5 分钟</dd> <dt data-astro-cid-fezs4xpw>分类</dt><dd data-astro-cid-fezs4xpw>技术选型</dd> </dl> <h4 style="margin-top:22px;" data-astro-cid-fezs4xpw>全部文章</h4> <ul class="side-links" data-astro-cid-fezs4xpw> <li data-astro-cid-fezs4xpw><a href="/notes/01-static-first/" data-astro-cid-fezs4xpw>静态优先的选型推导 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/02-frp-tunnel/" data-astro-cid-fezs4xpw>内网穿透与 frp 落地 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/03-build-vs-runtime/" data-astro-cid-fezs4xpw>Astro 与 Vue/React 的差别 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/04-performance/" data-astro-cid-fezs4xpw>x86 与 i.MX6ULL 性能实测 <span data-astro-cid-fezs4xpw>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-fezs4xpw> <div data-astro-cid-fezs4xpw><a href="/notes/03-build-vs-runtime/" data-astro-cid-fezs4xpw>← Astro 与 Vue / React 到底差在哪</a></div> <div class="pager__next" data-astro-cid-fezs4xpw> <a href="/notes/" data-astro-cid-fezs4xpw>返回列表 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 

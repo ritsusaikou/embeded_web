@@ -1,0 +1,24 @@
+---
+interface Props {
+  eyebrow?: string;
+  title: string;
+  desc?: string;
+  href?: string;
+  linkText?: string;
+}
+const { eyebrow, title, desc, href, linkText = '查看全部' } = Astro.props;
+---
+
+<div class="head">
+  <div class="head__left">
+    {eyebrow && <span class="eyebrow">{eyebrow}</span>}
+    <h2>{title}</h2>
+    {desc && <p>{desc}</p>}
+  </div>
+  {href && (
+    <a class="link-arrow" href={href}>
+      {linkText}
+      <span aria-hidden="true">→</span>
+    </a>
+  )}
+</div>

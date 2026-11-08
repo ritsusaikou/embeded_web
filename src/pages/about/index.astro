@@ -1,0 +1,202 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import Icon from '../../components/Icon.astro';
+import { site } from '../../data/site';
+
+const stackRows = [
+  ['构建', 'Astro 5 · 静态输出（output: "static"）', '构建时渲染，产物无服务端依赖'],
+  ['样式', '原生 CSS，单文件设计系统', '不用 Tailwind，减少一层构建与体积'],
+  ['交互', '一段内联 fetch（约 0.4KB）', '只有状态刷新需要 JS'],
+  ['服务', 'Nginx 1.14（armhf）', '板上常驻 3.2MB，gzip_static'],
+  ['穿透', 'frp 反向隧道', '板子主动外连，无需公网 IP'],
+  ['TLS', 'Let\'s Encrypt + 公网 Nginx', '证书不进开发板'],
+  ['内容', 'Markdown + 内容集合（content collections）', '加一篇文章 = 加一个文件']
+];
+
+const choices = [
+  {
+    t: '不用 Vue / React',
+    d: '页面没有复杂状态，用框架等于给浏览器塞一个运行时。这里默认 0 KB 框架 JS，首屏不依赖脚本。'
+  },
+  {
+    t: '不用 SSR',
+    d: '内容构建时就确定了，服务端渲染只是在运行时重复做一遍已经做过的事，还要常驻 60MB+ 的 Node。'
+  },
+  {
+    t: '不用 CDN',
+    d: '课程项目的目的是「证明板子能提供服务」。挂 CDN 虽然更快，但恰好绕开了要证明的东西。'
+  },
+  {
+    t: '不做花哨动效',
+    d: '这是一个嵌入式项目：页面越轻，越能当作论据。体积和内存的数字本身就是成果的一部分。'
+  }
+];
+---
+
+<Base title="关于" description="关于本站：作者、课程背景、技术栈与设计取舍。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>关于</span>
+      </div>
+      <h1>关于本站</h1>
+      <p>
+        这是《嵌入式系统》课程的综合作业交付物之一。它既是作业的载体，
+        也是作业本身的证明——所有内容都由一块 i.MX6ULL 开发板提供。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="grid-2" style="gap:56px; align-items:start;">
+        <div>
+          <span class="eyebrow">背景</span>
+          <h2 style="margin:14px 0 16px;">为什么要把网站跑在板子上</h2>
+          <div class="stack-16" style="font-size:15px; color:var(--ink-3);">
+            <p>
+              课程要求是「在开发板上部署一个可以通过公网访问的网站」。最容易的做法是
+              租一台服务器，把网页丢上去——但那样和开发板就没有关系了。
+            </p>
+            <p>
+              所以这个项目把约束当成设计条件：<strong>512MB 内存、单核 A7、没有公网 IP</strong>。
+              这三条限制逼着我把整个技术栈从上到下砍了一遍，最后剩下的东西很少，
+              但每一层都能解释清楚为什么在那儿。
+            </p>
+            <p>
+              8 次课程实验的记录也一并放在了这里。它们不是摆设——网页要跑起来，
+              靠的正是实验里学到的交叉编译、驱动调试、文件系统与网络配置。
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="padding:26px;">
+          <div class="card__num">PROFILE</div>
+          <dl class="info">
+            <dt>作者</dt><dd>{site.author}</dd>
+            <dt>课程</dt><dd>{site.course}</dd>
+            <dt>板卡</dt><dd>{site.board}</dd>
+            <dt>仓库</dt>
+            <dd><a href={site.github} target="_blank" rel="noopener">{site.github.replace('https://', '')} ↗</a></dd>
+            <dt>本站</dt><dd class="mono">{site.domain}</dd>
+            <dt>构建</dt><dd>Astro 5 · 静态输出</dd>
+          </dl>
+          <a class="btn btn--ghost btn--sm" href={site.github} target="_blank" rel="noopener" style="margin-top:20px; width:100%;">
+            查看 GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead eyebrow="技术栈" title="本站用什么搭的" desc="每一行的选择理由都写在技术选型板块里。" href="/notes/" linkText="看推导过程" />
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>层次</th><th>选择</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            {stackRows.map((r) => (
+              <tr>
+                <td><strong>{r[0]}</strong></td>
+                <td class="mono">{r[1]}</td>
+                <td class="muted">{r[2]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <SectionHead eyebrow="取舍" title="四个刻意的「不做」" desc="知道不做什么，比知道做什么更能说明理解了约束。" />
+      <div class="cards cards--2">
+        {choices.map((c) => (
+          <div class="card">
+            <h3>{c.t}</h3>
+            <p style="margin-top:6px;">{c.d}</p>
+          </div>
+        ))}
+      </div>
+
+      <div class="thanks">
+        <Icon name="check" size={16} />
+        <p>
+          站内所有实验记录均为实际动手后的整理，包含真实报错与排查过程；
+          技术选型部分的数据为实测所得，测量方法写在对应文章里。
+        </p>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .info {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 11px 14px;
+    font-size: 13.5px;
+    margin: 0;
+  }
+  .info dt {
+    color: var(--muted);
+  }
+  .info dd {
+    margin: 0;
+    word-break: break-all;
+  }
+  .info a {
+    color: var(--brand-dark);
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: #fff;
+  }
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .tbl th,
+  .tbl td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tbl thead th {
+    background: var(--soft);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .tbl .mono {
+    font-size: 12.5px;
+  }
+  .thanks {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-top: 36px;
+    padding: 20px 22px;
+    border-left: 2px solid var(--brand);
+    background: var(--brand-soft);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+  .thanks svg {
+    color: var(--brand);
+    flex: none;
+    margin-top: 3px;
+  }
+</style>

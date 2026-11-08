@@ -1,29 +1,51 @@
 #!/usr/bin/env bash
 # ============================================================
-# 轻痕博客 · 服务器初始化（在 512MB Linux 服务器上执行一次）
-# 适用：Debian / Ubuntu 系
+# 公网服务器初始化（只做一次）
+#   - 安装 Nginx 与 frp
+#   - 写入 443 站点配置，反代到 frps 映射端口
+#   - 申请 Let's Encrypt 证书
+#
+# 用法：
+#   sudo DOMAIN=imx6ull.example.com EMAIL=you@example.com bash server-init.sh
 # ============================================================
 set -euo pipefail
 
-SITE_DIR="/var/www/blog"
-NGINX_CONF="blog.conf"
+DOMAIN="${DOMAIN:?请设置 DOMAIN，例如 imx6ull.example.com}"
+EMAIL="${EMAIL:?请设置 EMAIL，用于证书通知}"
+UPSTREAM="127.0.0.1:8080"     # 与 frpc 的 remotePort 一致
 
-echo "==> 安装 Nginx ..."
-apt update && apt install -y nginx
+echo "==> [1/4] 安装依赖"
+apt update
+apt install -y nginx certbot python3-certbot-nginx
+# frp 请从 release 下载对应架构的压缩包，解压后：
+#   install -m 755 frps frpc /usr/local/bin/
 
-echo "==> 创建站点目录 ..."
-mkdir -p "${SITE_DIR}"
-# 归属设为 www-data，普通用户通过 rsync 上传时也能写入（按需调整）
-chown -R www-data:www-data "${SITE_DIR}"
+echo "==> [2/4] 写入站点配置（先 80 端口，供 ACME 校验）"
+cat > /etc/nginx/sites-available/board-site <<CONF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
 
-echo "==> 安装站点配置 ..."
-cp nginx.conf "/etc/nginx/sites-available/${NGINX_CONF}"
-ln -sf "/etc/nginx/sites-available/${NGINX_CONF}" "/etc/nginx/sites-enabled/${NGINX_CONF}"
-# 小内存机上可移除默认站点，省一个 server 块
-rm -f /etc/nginx/sites-enabled/default
+    location / {
+        proxy_pass http://${UPSTREAM};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+CONF
 
-echo "==> 校验并重载 ..."
-nginx -t && systemctl reload nginx
+ln -sf /etc/nginx/sites-available/board-site /etc/nginx/sites-enabled/board-site
+nginx -t
+systemctl reload nginx
 
-echo "==> 完成！接下来在本机执行 deploy.sh 推送内容即可。"
-echo "    建议：sudo apt install certbot python3-certbot-nginx && sudo certbot --nginx -d <你的域名>"
+echo "==> [3/4] 申请证书（自动改写配置为 443 + 80 跳转）"
+certbot --nginx -d "${DOMAIN}" -m "${EMAIL}" --agree-tos --redirect -n
+
+echo "==> [4/4] 完成"
+echo "    下一步：在本机配置 frps.toml 与 frpc.toml，然后："
+echo "    systemctl enable --now frps        # 服务器"
+echo "    systemctl enable --now frpc        # 开发板"
+echo "    验证：curl -I https://${DOMAIN}"

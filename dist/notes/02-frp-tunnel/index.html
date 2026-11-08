@@ -1,0 +1,116 @@
+<!DOCTYPE html><html lang="zh-CN"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="Astro v5.18.2"><title>内网穿透方案对比与 frp 落地 · 嵌入式系统课程项目站</title><meta name="description" content="开发板在校园网 NAT 后面没有公网 IP，如何把 http://板子:80 映射到自己的域名。对比 frp / Cloudflare Tunnel / Tailscale，并说明 TLS 必须终结在公网服务器的原因。"><link rel="canonical" href="https://board.nexuslink.icu/notes/02-frp-tunnel/"><meta name="theme-color" content="#ff5000"><meta property="og:type" content="website"><meta property="og:title" content="内网穿透方案对比与 frp 落地 · 嵌入式系统课程项目站"><meta property="og:description" content="开发板在校园网 NAT 后面没有公网 IP，如何把 http://板子:80 映射到自己的域名。对比 frp / Cloudflare Tunnel / Tailscale，并说明 TLS 必须终结在公网服务器的原因。"><meta property="og:url" content="https://board.nexuslink.icu/notes/02-frp-tunnel/"><meta name="twitter:card" content="summary"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="alternate" type="application/rss+xml" title="嵌入式系统课程项目站" href="/rss.xml"><style>.side-links[data-astro-cid-fezs4xpw] li[data-astro-cid-fezs4xpw]+li[data-astro-cid-fezs4xpw]{margin-top:10px}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--ink-2)}.side-links[data-astro-cid-fezs4xpw] a[data-astro-cid-fezs4xpw]:hover{color:var(--brand)}.pager[data-astro-cid-fezs4xpw]{padding-bottom:72px}
+</style>
+<link rel="stylesheet" href="/_astro/index.BmOg56SZ.css"></head> <body> <a class="sr-only" href="#main">跳到主要内容</a> <div class="topbar"> <div class="container"> <div class="topbar__left"> <span><i class="dot-live"></i>站点运行于 i.MX6ULL · 512MB</span> <span class="mono">kernel 4.1.15 · nginx 1.14</span> </div> <div class="topbar__right"> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">GitHub 仓库 ↗</a> <span class="mono">嵌入式系统（2026 秋）</span> </div> </div> </div> <header class="site-header"> <div class="container"> <a class="brand" href="/"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </a> <nav class="nav" aria-label="主导航"> <a href="/"> 首页 </a><a href="/lab/"> 实验日志 </a><a href="/project/"> 课程项目 </a><a href="/course-design/"> 课程设计 </a><a href="/docs/"> 设计文档 </a><a href="/notes/" aria-current="page"> 技术选型 </a><a href="/about/"> 关于 </a> </nav> <div class="header__actions"> <a class="btn btn--ghost btn--sm" href="/gallery/">演示素材</a> <a class="btn btn--primary btn--sm" href="/project/">查看课程项目</a> </div> </div> </header> <main id="main">  <section class="page-head" data-astro-cid-fezs4xpw> <div class="container" data-astro-cid-fezs4xpw> <div class="crumbs" data-astro-cid-fezs4xpw> <a href="/" data-astro-cid-fezs4xpw>首页</a><span data-astro-cid-fezs4xpw>/</span><a href="/notes/" data-astro-cid-fezs4xpw>技术选型</a><span data-astro-cid-fezs4xpw>/</span> <span data-astro-cid-fezs4xpw>NOTE 02</span> </div> <h1 style="font-size:clamp(24px,2.6vw,32px); max-width:24em;" data-astro-cid-fezs4xpw>内网穿透方案对比与 frp 落地</h1> <p data-astro-cid-fezs4xpw>开发板在校园网 NAT 后面没有公网 IP，如何把 http://板子:80 映射到自己的域名。对比 frp / Cloudflare Tunnel / Tailscale，并说明 TLS 必须终结在公网服务器的原因。</p> <div class="card__tags" style="margin-top:16px;" data-astro-cid-fezs4xpw> <span class="badge" data-astro-cid-fezs4xpw>8 分钟</span> <span class="tag" data-astro-cid-fezs4xpw>frp</span><span class="tag" data-astro-cid-fezs4xpw>内网穿透</span><span class="tag" data-astro-cid-fezs4xpw>网络</span><span class="tag" data-astro-cid-fezs4xpw>TLS</span> </div> </div> </section> <div class="container" data-astro-cid-fezs4xpw> <div class="detail" data-astro-cid-fezs4xpw> <article class="prose" data-astro-cid-fezs4xpw> <h2 id="问题">问题</h2>
+<p>开发板接在实验室交换机后面，出口是校园网 NAT，<strong>没有公网 IP，也无法做端口映射</strong>。但项目要求「用域名访问」。所以需要一条从「公网服务器」反向进入「板子」的通道。</p>
+<p>关键认知：<strong>穿透的方向是「从内向外建立连接」</strong>。板子主动连服务器，把连接保持住，服务器收到请求时顺着这条已有连接转发回去。这样 NAT 设备不会拦——因为出站连接本来就是允许的。</p>
+<h2 id="方案对比">方案对比</h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<table><thead><tr><th>方案</th><th>板上客户端内存</th><th>需要公网服务器</th><th>优点</th><th>缺点</th></tr></thead><tbody><tr><td><strong>frp</strong></td><td>8–15 MB</td><td>需要</td><td>纯 TCP 转发，可见可控，配置透明，答辩好讲</td><td>要自己维护 frps 与证书</td></tr><tr><td>Cloudflare Tunnel</td><td>15–25 MB</td><td>不需要</td><td>一条命令搞定，自带 CDN 与证书</td><td>依赖第三方，流量过境，国内延迟不稳</td></tr><tr><td>Tailscale / ZeroTier</td><td>20–40 MB</td><td>不需要</td><td>组网简单，P2P 直连</td><td>需装虚拟网卡，TUN 在嵌入式内核上要额外配置</td></tr><tr><td>花生壳等商业内网穿透</td><td>—</td><td>不需要</td><td>零配置</td><td>免费版限速限流量，域名不可控</td></tr><tr><td>WireGuard 自建</td><td>3–8 MB</td><td>需要</td><td>最省内存，性能最好</td><td>要在板子上配 TUN/TAP，路由与 iptables 较繁</td></tr></tbody></table>
+<p>选 <strong>frp</strong>：常驻内存小、逻辑最透明、每一层都能自己控制，而且它的「客户端主动外连」模型正好适合讲清楚 NAT 穿透原理。WireGuard 内存更省，但对这个项目来说配置成本高于收益。</p>
+<h2 id="架构">架构</h2>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="text"><code><span class="line"><span>浏览器 ──HTTPS:443──> 公网服务器 Nginx</span></span>
+<span class="line"><span>                          │ proxy_pass 127.0.0.1:8080</span></span>
+<span class="line"><span>                       frps（公网）</span></span>
+<span class="line"><span>                          ▲ frp 隧道（板子主动外连 7000）</span></span>
+<span class="line"><span>                       frpc（开发板）</span></span>
+<span class="line"><span>                          │</span></span>
+<span class="line"><span>                       Nginx:80 ──> dist/ 静态文件</span></span></code></pre>
+<h2 id="两个必须做对的细节">两个必须做对的细节</h2>
+<h3 id="1-frps-的回连端口只绑本机">1. frps 的回连端口只绑本机</h3>
+<p>frps 有两个端口概念：<code>bindPort</code>（板子连进来的 7000）和 <code>remotePort</code>（映射出来的 8080）。<strong>后者绝对不能对公网开放</strong>，否则任何人都能绕过你的 Nginx 直连站点，甚至把服务当跳板。</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#6A737D"># /etc/frp/frps.toml</span></span>
+<span class="line"><span style="color:#E1E4E8">bindPort = </span><span style="color:#79B8FF">7000</span></span>
+<span class="line"><span style="color:#E1E4E8">proxyBindAddr = </span><span style="color:#9ECBFF">"127.0.0.1"</span><span style="color:#6A737D">   # 关键</span></span>
+<span class="line"><span style="color:#E1E4E8">auth.method = </span><span style="color:#9ECBFF">"token"</span></span>
+<span class="line"><span style="color:#E1E4E8">auth.token = </span><span style="color:#9ECBFF">"换成一串随机字符串"</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="toml"><code><span class="line"><span style="color:#6A737D"># /etc/frp/frpc.toml</span></span>
+<span class="line"><span style="color:#E1E4E8">serverAddr = </span><span style="color:#9ECBFF">"服务器公网 IP"</span></span>
+<span class="line"><span style="color:#E1E4E8">serverPort = </span><span style="color:#79B8FF">7000</span></span>
+<span class="line"><span style="color:#E1E4E8">auth.method = </span><span style="color:#9ECBFF">"token"</span></span>
+<span class="line"><span style="color:#E1E4E8">auth.token = </span><span style="color:#9ECBFF">"与服务器一致"</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#E1E4E8">[[</span><span style="color:#B392F0">proxies</span><span style="color:#E1E4E8">]]</span></span>
+<span class="line"><span style="color:#E1E4E8">name = </span><span style="color:#9ECBFF">"board-web"</span></span>
+<span class="line"><span style="color:#E1E4E8">type = </span><span style="color:#9ECBFF">"tcp"</span></span>
+<span class="line"><span style="color:#E1E4E8">localIP = </span><span style="color:#9ECBFF">"127.0.0.1"</span></span>
+<span class="line"><span style="color:#E1E4E8">localPort = </span><span style="color:#79B8FF">80</span></span>
+<span class="line"><span style="color:#E1E4E8">remotePort = </span><span style="color:#79B8FF">8080</span></span></code></pre>
+<h3 id="2-tls-终结在公网服务器">2. TLS 终结在公网服务器</h3>
+<p>为什么不在板子上跑 certbot：</p>
+<ul>
+<li>Let’s Encrypt 的 ACME 校验需要在 80 端口对外可见，而板子在 NAT 后面；</li>
+<li>ARM 上 openssl 握手与续期开销不小，还会周期性拉起 Python；</li>
+<li>证书私钥放在一块随时可能被拔电的开发板上，本身就不合理。</li>
+</ul>
+<p>正确做法：<strong>证书只在公网服务器上，板子只说 HTTP，明文只在 frp 隧道里跑，而隧道本身是加密的（可用 <code>transport.tls.enable = true</code>）。</strong></p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="nginx"><code><span class="line"><span style="color:#F97583">server</span><span style="color:#E1E4E8"> {</span></span>
+<span class="line"><span style="color:#F97583">    listen </span><span style="color:#79B8FF">443</span><span style="color:#E1E4E8"> ssl http2;</span></span>
+<span class="line"><span style="color:#F97583">    server_name </span><span style="color:#E1E4E8">imx6ull.example.com;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#F97583">    location</span><span style="color:#B392F0"> / </span><span style="color:#E1E4E8">{</span></span>
+<span class="line"><span style="color:#F97583">        proxy_pass </span><span style="color:#E1E4E8">http://127.0.0.1:8080;</span></span>
+<span class="line"><span style="color:#F97583">        proxy_set_header </span><span style="color:#E1E4E8">Host $host;</span></span>
+<span class="line"><span style="color:#F97583">        proxy_set_header </span><span style="color:#E1E4E8">X-Forwarded-For $proxy_add_x_forwarded_for;</span></span>
+<span class="line"><span style="color:#F97583">        proxy_set_header </span><span style="color:#E1E4E8">X-Forwarded-Proto $scheme;</span></span>
+<span class="line"><span style="color:#E1E4E8">    }</span></span>
+<span class="line"><span style="color:#E1E4E8">}</span></span></code></pre>
+<h2 id="板子侧的额外优化">板子侧的额外优化</h2>
+<p>单核 A7 做 gzip 压缩要几毫秒到十几毫秒，一次请求就白烧 CPU。改成<strong>构建时预压缩</strong>，Nginx 直接发 <code>.gz</code>：</p>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="bash"><code><span class="line"><span style="color:#B392F0">find</span><span style="color:#9ECBFF"> dist</span><span style="color:#79B8FF"> -type</span><span style="color:#9ECBFF"> f</span><span style="color:#79B8FF"> \(</span><span style="color:#79B8FF"> -name</span><span style="color:#9ECBFF"> '*.html'</span><span style="color:#79B8FF"> -o</span><span style="color:#79B8FF"> -name</span><span style="color:#9ECBFF"> '*.css'</span><span style="color:#79B8FF"> -o</span><span style="color:#79B8FF"> -name</span><span style="color:#9ECBFF"> '*.xml'</span><span style="color:#79B8FF"> \)</span><span style="color:#79B8FF"> -exec</span><span style="color:#9ECBFF"> gzip</span><span style="color:#79B8FF"> -9</span><span style="color:#79B8FF"> -k</span><span style="color:#9ECBFF"> {}</span><span style="color:#79B8FF"> \;</span></span></code></pre>
+<pre class="astro-code github-dark" style="background-color:#24292e;color:#e1e4e8; overflow-x: auto;" tabindex="0" data-language="nginx"><code><span class="line"><span style="color:#F97583">gzip_static </span><span style="color:#79B8FF">on</span><span style="color:#E1E4E8">;   </span><span style="color:#6A737D"># 有 .gz 就发 .gz，没有就发原文件</span></span>
+<span class="line"><span style="color:#F97583">gzip </span><span style="color:#79B8FF">off</span><span style="color:#E1E4E8">;         </span><span style="color:#6A737D"># 关掉运行时压缩，省 CPU</span></span></code></pre>
+<h2 id="踩过的坑">踩过的坑</h2>
+<p><strong>板子重启后站点 502。</strong> frpc 起来了但 Nginx 还没起，frps 转发过来无人应答。用 systemd 的 <code>After=nginx.service</code> 加 <code>Restart=always</code> 解决。</p>
+<p><strong>校园网夜间断连。</strong> frpc 默认有心跳，但网络设备会清理空闲连接的 NAT 表项。加 <code>transport.heartbeatInterval = 10</code>、<code>transport.heartbeatTimeout = 30</code> 后自动重连恢复正常。</p>
+<p><strong>访问很慢，首字节 300ms+。</strong> 起初以为是板子慢，实际是公网服务器到板子这条链路绕了远路，加上 TCP 窗口小。开启 <code>transport.tcpMux = true</code> 复用连接后改善明显。</p>
+<h2 id="结论">结论</h2>
+<p>frp 的价值不只是「能用」，而是<strong>每一层都可解释</strong>：DNS 指向服务器、Nginx 持有证书、frps 只绑本机、frpc 主动外连、板子只提供静态文件。答辩时可以把这条链路从上到下讲一遍，每一跳的作用和风险都说得清——这比「我用了个工具就通了」有价值得多。</p> </article> <aside class="side" data-astro-cid-fezs4xpw> <h4 data-astro-cid-fezs4xpw>文章信息</h4> <dl data-astro-cid-fezs4xpw> <dt data-astro-cid-fezs4xpw>日期</dt><dd data-astro-cid-fezs4xpw>2026.11.05</dd> <dt data-astro-cid-fezs4xpw>阅读</dt><dd data-astro-cid-fezs4xpw>8 分钟</dd> <dt data-astro-cid-fezs4xpw>分类</dt><dd data-astro-cid-fezs4xpw>技术选型</dd> </dl> <h4 style="margin-top:22px;" data-astro-cid-fezs4xpw>全部文章</h4> <ul class="side-links" data-astro-cid-fezs4xpw> <li data-astro-cid-fezs4xpw><a href="/notes/01-static-first/" data-astro-cid-fezs4xpw>静态优先的选型推导 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/02-frp-tunnel/" data-astro-cid-fezs4xpw>内网穿透与 frp 落地 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/03-build-vs-runtime/" data-astro-cid-fezs4xpw>Astro 与 Vue/React 的差别 <span data-astro-cid-fezs4xpw>→</span></a></li> <li data-astro-cid-fezs4xpw><a href="/notes/04-performance/" data-astro-cid-fezs4xpw>x86 与 i.MX6ULL 性能实测 <span data-astro-cid-fezs4xpw>→</span></a></li> </ul> </aside> </div> <div class="pager" data-astro-cid-fezs4xpw> <div data-astro-cid-fezs4xpw><a href="/notes/01-static-first/" data-astro-cid-fezs4xpw>← 为什么这个站点没有用 Node：静态优先的选型推导</a></div> <div class="pager__next" data-astro-cid-fezs4xpw> <a href="/notes/03-build-vs-runtime/" data-astro-cid-fezs4xpw>Astro 与 Vue / React 到底差在哪 →</a> </div> </div> </div>  </main> <footer class="site-footer"> <div class="container"> <div class="footer__grid"> <div> <div class="footer__brand"> <span class="brand__mark">iM</span> <span class="brand__text"> <span class="brand__name">EMBEDDED</span> <span class="brand__sub">i.MX6ULL · 课程项目</span> </span> </div> <p>
+本站是《嵌入式系统》课程项目的交付物之一：一个托管在 i.MX6ULL
+          开发板上的静态站点，经 frp 反向隧道发布到公网服务器，全站零前端框架 JS。
+</p> </div> <div> <h5>课程内容</h5> <ul> <li><a href="/lab/">实验日志（8 篇）</a></li> <li><a href="/project/">课程项目 · frp 建站</a></li> <li><a href="/course-design/">课程设计 · Qt 应用</a></li> <li><a href="/gallery/">演示素材</a></li> </ul> </div> <div> <h5>工程文档</h5> <ul> <li><a href="/docs/">系统设计文档</a></li> <li><a href="/notes/">技术选型分析</a></li> <li><a href="/source/">源码与产物</a></li> <li><a href="/about/">关于本站</a></li> </ul> </div> <div> <h5>运行环境</h5> <ul> <li class="mono">board · i.MX6ULL</li> <li class="mono">ram · 512MB</li> <li class="mono">server · nginx + frp</li> <li> <a href="https://github.com/ritsusaikou/embeded_web" target="_blank" rel="noopener">github.com ↗</a> </li> </ul> </div> </div> <div class="footer__bottom"> <span>© 2026 ritsusaikou · 嵌入式系统（2026 秋）</span> <span>Astro 静态构建 · 零框架 JS · 页面体积 &lt; 100KB</span> </div> </div> </footer> </body></html> 
