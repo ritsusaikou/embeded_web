@@ -3,13 +3,14 @@ import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
-  // 部署前改成你自己的域名（用于 RSS / sitemap / canonical）
-  site: 'https://blog.example.com',
+  // 用于 canonical / RSS / sitemap
+  site: 'https://board.nexuslink.icu',
   output: 'static',
-  trailingSlash: 'never',
+  trailingSlash: 'always',
   compressHTML: true,
   integrations: [sitemap()],
   build: {
+    // 单页 CSS 超过 4KB，保持外链以便跨页缓存
     inlineStylesheets: 'auto'
   }
 });

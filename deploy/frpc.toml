@@ -1,0 +1,28 @@
+# ============================================================
+# 开发板 · frp 客户端配置
+# 部署：/etc/frp/frpc.toml
+# 服务：systemctl enable --now frpc
+#
+# 方向很重要：板子「主动」连服务器，所以不需要公网 IP，
+# 也不需要在路由器上做端口映射。
+# ============================================================
+
+serverAddr = "112.124.58.134"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "3edc37ef6bca4f276c4d0c6ba3c9421d"   # 必须与服务器 frps.toml 完全一致
+
+# 隧道内再加密一层（公网传输，建议开启）
+transport.tls.enable = true
+# 校园网/家用路由器会清理空闲 NAT 表项，心跳保证连接不被回收
+transport.heartbeatInterval = 10
+transport.heartbeatTimeout = 30
+transport.tcpMux = true
+
+[[proxies]]
+name = "board-web"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 80
+remotePort = 8080

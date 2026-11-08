@@ -1,29 +1,385 @@
 ---
-import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
-import PostCard from '../components/PostCard.astro';
+import SectionHead from '../components/SectionHead.astro';
+import Icon from '../components/Icon.astro';
+import { site, metrics, snapshot } from '../data/site';
+import { getCollection } from 'astro:content';
 
-const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
-  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
-);
-const recent = posts.slice(0, 10);
+const labs = (await getCollection('lab')).sort((a, b) => a.data.order - b.data.order);
+const notes = (await getCollection('note')).sort((a, b) => a.data.order - b.data.order);
+
+const fmt = (d: Date) => {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}.${m}.${day}`;
+};
+
+const entries = [
+  {
+    href: '/lab/',
+    icon: 'book',
+    title: '实验日志',
+    desc: '8 个课程实验的完整记录：从交叉编译环境到 V4L2 摄像头采集。',
+    foot: '8 篇 · 全部完成',
+    badge: null
+  },
+  {
+    href: '/project/',
+    icon: 'net',
+    title: '课程项目',
+    desc: '跑在开发板上的静态站点，经 frp 反向隧道发布到公网域名。',
+    foot: '已上线 · 含架构图',
+    badge: null
+  },
+  {
+    href: '/course-design/',
+    icon: 'code',
+    title: '课程设计',
+    desc: '使用 Qt 编写的桌面端软件，独立于课程实验的综合作业。',
+    foot: '待上传',
+    badge: '预留'
+  },
+  {
+    href: '/docs/',
+    icon: 'layers',
+    title: '设计文档',
+    desc: '硬件框图、引脚分配、工具链版本、内核裁剪与烧录流程。',
+    foot: '6 个章节',
+    badge: null
+  },
+  {
+    href: '/notes/',
+    icon: 'terminal',
+    title: '技术选型',
+    desc: '为什么不用 Node SSR、frp 怎么落地、Astro 与 Vue 差在哪。',
+    foot: `${notes.length} 篇分析`,
+    badge: null
+  },
+  {
+    href: '/source/',
+    icon: 'git',
+    title: '源码与产物',
+    desc: '仓库结构、构建脚本、部署脚本与产物清单，可完整复现。',
+    foot: 'GitHub 公开',
+    badge: null
+  },
+  {
+    href: '/gallery/',
+    icon: 'image',
+    title: '演示素材',
+    desc: '实物照片、上电视频、串口日志与 top 截图，用于答辩演示。',
+    foot: '待补充',
+    badge: '预留'
+  },
+  {
+    href: '/about/',
+    icon: 'cpu',
+    title: '关于本站',
+    desc: '作者信息、课程背景，以及本站自身的技术栈与设计取舍。',
+    foot: '站点说明',
+    badge: null
+  }
+];
+
+const hops = [
+  { k: '构建', v: 'PC 上 npm run build', d: 'Astro 把 Markdown 与组件渲染成纯 HTML / CSS' },
+  { k: '分发', v: 'rsync → 开发板', d: '只上传 dist/ 目录，不在板子上构建' },
+  { k: '服务', v: 'Nginx :80', d: 'sendfile 零拷贝、gzip_static 预压缩' },
+  { k: '出口', v: 'frpc → frps → 域名', d: '板子主动外连，TLS 在公网服务器终结' }
+];
 ---
 
-<Base title="" description="轻痕 —— 一个安静写字的地方：技术、生活与思考。">
+<Base>
+  <!-- ============ Hero ============ -->
   <section class="hero">
-    <h1>把想法轻轻放下，留一道痕迹。</h1>
-    <p>这里记录技术实践、读书笔记与一些随想。全站纯静态，轻得可以跑在 512MB 的小机器上。</p>
+    <div class="container hero__grid">
+      <div>
+        <span class="eyebrow">嵌入式系统 · 课程项目</span>
+        <h1>把一个网站<br />跑在 <em>512MB</em> 的开发板上</h1>
+        <p class="lead hero__lead">
+          i.MX6ULL、单核 Cortex-A7、没有公网 IP。这个站点从零搭建：8 个课程实验、
+          1 个 Qt 课程设计、1 个 frp 内网穿透建站项目，全部归档在这里，并且它本身
+          就跑在那块板子上。
+        </p>
+
+        <div class="hero__cta">
+          <a class="btn btn--primary" href="/lab/">浏览实验日志</a>
+          <a class="btn btn--ghost" href="/project/">查看课程项目</a>
+        </div>
+
+        <div class="hero__meta">
+          <span>板卡 <b>i.MX6ULL</b></span>
+          <span>内核 <b>4.1.15</b></span>
+          <span>框架 JS <b>0 KB</b></span>
+          <span>部署 <b>Nginx + frp</b></span>
+        </div>
+      </div>
+
+      <div class="term" aria-label="开发板运行状态">
+        <div class="term__bar">
+          <span class="term__dots"><i></i><i></i><i></i></span>
+          <span class="term__title">root@{snapshot.host}: ~</span>
+        </div>
+        <div class="term__body">
+          <div class="term__row">
+            <span class="term__k">$ uname -sm</span>
+            <span class="term__v"><span class="ok">Linux armv7l</span></span>
+          </div>
+          <div class="term__row">
+            <span class="term__k">kernel</span>
+            <span class="term__v" id="st-kernel">{snapshot.kernel}</span>
+          </div>
+          <div class="term__row">
+            <span class="term__k">uptime</span>
+            <span class="term__v" id="st-uptime">{snapshot.uptime}</span>
+          </div>
+          <div class="term__row">
+            <span class="term__k">memory</span>
+            <span class="term__v" id="st-mem">{snapshot.mem}</span>
+          </div>
+          <div class="term__row">
+            <span class="term__k">nginx</span>
+            <span class="term__v" id="st-nginx">{snapshot.nginx}</span>
+          </div>
+          <div class="term__row">
+            <span class="term__k">tunnel</span>
+            <span class="term__v" id="st-tunnel"><span class="ok">{snapshot.tunnel}</span></span>
+          </div>
+        </div>
+        <div class="term__foot">
+          <span>status.json · 10s</span>
+          <span id="st-time">{snapshot.collectedAt}</span>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <section class="post-list" aria-label="最新文章">
-    {recent.map((post) => <PostCard post={post} />)}
+  <!-- ============ 指标 ============ -->
+  <section class="section section--tight">
+    <div class="container">
+      <div class="metrics">
+        {metrics.map((m) => (
+          <div class="metrics__item">
+            <div class="metrics__num">{m.num}<small>{m.unit}</small></div>
+            <div class="metrics__label">{m.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   </section>
 
-  {
-    posts.length > 10 && (
-      <p style="margin-top:2.5rem; text-align:center;">
-        <a href="/archive/">查看全部 {posts.length} 篇文章 →</a>
-      </p>
-    )
-  }
+  <!-- ============ 站内导航 ============ -->
+  <section class="section">
+    <div class="container">
+      <SectionHead
+        eyebrow="站内导航"
+        title="七个板块，一条完整的交付链"
+        desc="课程实验 → 系统设计 → 课程项目 → 技术复盘。每个板块都有实际内容，不是占位页。"
+      />
+      <div class="cards cards--4">
+        {entries.map((e) => (
+          <a class="card" href={e.href}>
+            <span class="card__icon"><Icon name={e.icon} size={18} /></span>
+            <h3>{e.title}</h3>
+            <p>{e.desc}</p>
+            <div class="card__foot">
+              <span class="mono">{e.foot}</span>
+              {e.badge && <span class="badge badge--wait">{e.badge}</span>}
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 实验时间线 ============ -->
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead
+        eyebrow="实验日志"
+        title="八次实验，从点亮一颗 LED 到采集一帧图像"
+        desc="每次实验都记录了目的、原理、关键代码和真实的报错排查过程。"
+        href="/lab/"
+        linkText="查看全部 8 篇"
+      />
+      <div class="rows">
+        {labs.map((lab) => (
+          <a class="row" href={`/lab/${lab.id}/`}>
+            <span class="row__idx">L{String(lab.data.order).padStart(2, '0')}</span>
+            <span>
+              <span class="row__title">
+                {lab.data.title}
+                <span class="badge badge--ok">{lab.data.week}</span>
+              </span>
+              <span class="row__desc">{lab.data.summary}</span>
+            </span>
+            <span class="row__meta">{fmt(lab.data.date)}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 架构 ============ -->
+  <section class="section">
+    <div class="container grid-2" style="align-items:start; gap:56px;">
+      <div>
+        <span class="eyebrow">运行架构</span>
+        <h2 style="margin:14px 0 16px;">PC 上构建，板子上服务，服务器做出口</h2>
+        <p class="muted" style="font-size:15px;">
+          整条链路只有四跳，每一跳的职责都很单一：构建在性能足够的机器上完成，
+          开发板只负责把文件发出去，公网服务器只负责证书与入口。任何一跳出问题，
+          都能单独定位。
+        </p>
+
+        <div class="hops">
+          {hops.map((h, i) => (
+            <div class="hop">
+              <span class="hop__n">{String(i + 1).padStart(2, '0')}</span>
+              <div>
+                <div class="hop__title">
+                  {h.k}
+                  <span class="mono">{h.v}</span>
+                </div>
+                <div class="hop__desc">{h.d}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div class="card" style="padding:28px;">
+        <div class="card__num">DESIGN GOALS</div>
+        <h3 style="margin-bottom:18px;">设计目标达成情况</h3>
+        <ul class="goals">
+          <li><Icon name="check" size={15} /><span>页面体积 &lt; 100 KB</span><b>8 KB</b></li>
+          <li><Icon name="check" size={15} /><span>框架 JS</span><b>0 KB</b></li>
+          <li><Icon name="check" size={15} /><span>Nginx 常驻内存</span><b>3.2 MB</b></li>
+          <li><Icon name="check" size={15} /><span>局域网 TTFB</span><b>3.2 ms</b></li>
+          <li><Icon name="check" size={15} /><span>域名 + HTTPS 可访问</span><b>已上线</b></li>
+        </ul>
+        <a class="link-arrow" href="/notes/04-performance/" style="margin-top:22px;">
+          查看完整实测数据<span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="section section--tight">
+    <div class="container">
+      <div class="cta">
+        <div>
+          <h3>全部源码与构建脚本都已公开</h3>
+          <p class="muted" style="margin-top:8px; font-size:14px;">
+            仓库包含 8 篇实验日志的 Markdown、技术选型分析、部署脚本与 Nginx 配置，
+            clone 下来执行 <code>npm install &amp;&amp; npm run build</code> 即可复现整站。
+          </p>
+        </div>
+        <div class="cta__actions">
+          <a class="btn btn--primary" href={site.github} target="_blank" rel="noopener">
+            GitHub 仓库 ↗
+          </a>
+          <a class="btn btn--ghost" href="/source/">源码结构说明</a>
+        </div>
+      </div>
+    </div>
+  </section>
 </Base>
+
+<style>
+  .hops {
+    margin-top: 34px;
+  }
+  .hop {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 14px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+  }
+  .hop:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .hop__n {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--brand);
+    padding-top: 3px;
+  }
+  .hop__title {
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .hop__title .mono {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+  .hop__desc {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .goals li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 0;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .goals li:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .goals svg {
+    color: #12b76a;
+    flex: none;
+  }
+  .goals b {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 30px 34px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: linear-gradient(120deg, var(--brand-soft), #fff 60%);
+  }
+  .cta__actions {
+    display: flex;
+    gap: 10px;
+    flex: none;
+  }
+  @media (max-width: 860px) {
+    .cta {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>
+
+<script is:inline>
+  // 仅一段状态刷新：请求 /status.json，失败则保留构建时的快照
+  fetch('/status.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then((d) => {
+      ['kernel', 'uptime', 'mem', 'nginx', 'tunnel'].forEach((k) => {
+        const el = document.getElementById('st-' + k);
+        if (el && d[k]) el.textContent = d[k];
+      });
+      const t = document.getElementById('st-time');
+      if (t && d.collectedAt) t.textContent = d.collectedAt;
+    })
+    .catch(() => {});
+</script>

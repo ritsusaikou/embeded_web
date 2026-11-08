@@ -1,0 +1,32 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="页面不存在" description="请求的页面不存在。">
+  <section class="section" style="padding:96px 0;">
+    <div class="container" style="max-width:720px; text-align:center;">
+      <div class="code404 mono">HTTP 404</div>
+      <h1 style="margin:18px 0 14px;">这个地址没有对应内容</h1>
+      <p class="muted" style="font-size:15px;">
+        可能是链接写错了，或者页面已经调整过路径。试试从下面几个入口重新开始。
+      </p>
+      <div style="display:flex; gap:12px; justify-content:center; margin-top:28px; flex-wrap:wrap;">
+        <a class="btn btn--primary" href="/">返回首页</a>
+        <a class="btn btn--ghost" href="/lab/">实验日志</a>
+        <a class="btn btn--ghost" href="/project/">课程项目</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .code404 {
+    display: inline-block;
+    font-size: 12.5px;
+    letter-spacing: 0.16em;
+    color: var(--brand);
+    background: var(--brand-soft);
+    padding: 6px 12px;
+    border-radius: 6px;
+  }
+</style>

@@ -1,0 +1,173 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+
+const groups = [
+  {
+    t: '实物与接线',
+    d: '开发板、供电、网线、摄像头与屏幕的实际连接方式',
+    items: ['整体俯拍', '接口特写', '接线示意图'],
+    state: '待拍摄'
+  },
+  {
+    t: '上电与启动日志',
+    d: '串口从 u-boot 到内核到登录提示符的完整输出',
+    items: ['u-boot 阶段', '内核启动', '挂载 rootfs'],
+    state: '待录制'
+  },
+  {
+    t: '页面运行',
+    d: '在板子上打开域名，展示完整页面与实验日志详情',
+    items: ['首页', '实验详情', '移动端'],
+    state: '待录制'
+  },
+  {
+    t: '资源占用',
+    d: 'top / free 截图，配合性能实测数据作为论据',
+    items: ['空载内存', '压测 CPU', '进程列表'],
+    state: '待截图'
+  },
+  {
+    t: '实验过程',
+    d: '8 次实验的关键现象：LED 闪烁、蜂鸣器、音频回放、摄像头预览',
+    items: ['LED 闪烁', '摄像头预览', 'Qt 界面'],
+    state: '待补充'
+  },
+  {
+    t: '答辩材料',
+    d: '演示用幻灯片与讲解提纲，含架构图与数据',
+    items: ['PPT', '讲解提纲', '演示脚本'],
+    state: '待制作'
+  }
+];
+---
+
+<Base title="演示素材" description="实物照片、上电视频、串口日志与资源占用截图，用于答辩时展示项目真实运行状态。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>演示素材</span>
+      </div>
+      <h1>演示素材</h1>
+      <p>
+        页面和数据都能造假，照片和视频不能。这一板块用来存放项目真实运行时的影像证据：
+        接线、上电、串口日志、页面加载、资源占用。
+      </p>
+      <div class="card__tags" style="margin-top:16px;">
+        <span class="badge badge--wait">素材整理中</span>
+        <span class="tag">6 组</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <SectionHead
+        eyebrow="清单"
+        title="需要采集的六组素材"
+        desc="占位说明已写好，拍到素材后直接把对应格子替换成图片或视频嵌入。"
+      />
+      <div class="cards">
+        {groups.map((g) => (
+          <div class="card">
+            <div class="gal__head">
+              <h3>{g.t}</h3>
+              <span class="badge badge--wait">{g.state}</span>
+            </div>
+            <p style="margin-top:6px;">{g.d}</p>
+            <div class="gal__slots">
+              {g.items.map((i) => (
+                <div class="gal__slot">
+                  <span class="gal__plus">+</span>
+                  <span>{i}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div class="note">
+        <strong>采集建议</strong>
+        <ul>
+          <li>照片统一 4:3 横构图、光线均匀；拍摄时把串口线和网线拍进画面，能体现「真的在跑」。</li>
+          <li>视频不超过 90 秒：上电 → 串口滚屏 → 浏览器输入域名 → 页面出现，一镜到底不要剪辑。</li>
+          <li>资源占用截图保留时间戳与进程名，<span class="mono">top</span> 里能看到 nginx 的 RSS 最有说服力。</li>
+          <li>所有素材压缩后放进 <span class="mono">public/gallery/</span>，用相对路径引用，避免外链失效。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .gal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .gal__slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .gal__slot {
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--soft);
+    aspect-ratio: 4 / 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-align: center;
+    padding: 4px;
+  }
+  .gal__plus {
+    font-size: 15px;
+    color: var(--line-2);
+    line-height: 1;
+  }
+  .note {
+    margin-top: 40px;
+    padding: 24px 26px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: var(--soft);
+    font-size: 14px;
+  }
+  .note strong {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 14.5px;
+  }
+  .note li {
+    position: relative;
+    padding-left: 16px;
+    color: var(--ink-3);
+    line-height: 1.75;
+  }
+  .note li + li {
+    margin-top: 6px;
+  }
+  .note li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 11px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--line-2);
+  }
+  @media (max-width: 720px) {
+    .gal__slots {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>

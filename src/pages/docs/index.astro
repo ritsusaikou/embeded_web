@@ -1,0 +1,351 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+
+const pins = [
+  { f: 'LED0', pin: 'GPIO1_IO03', mux: 'ALT5 (GPIO)', dir: '输出 · 低电平点亮', drv: 'led-gpio（内核自带）' },
+  { f: '蜂鸣器', pin: 'GPIO1_IO18', mux: 'ALT5 (GPIO)', dir: '输出 · 低电平鸣叫', drv: '自定义 platform 驱动' },
+  { f: '音频 Codec', pin: 'I2C2_SDA / SCL', mux: 'ALT0 (I2C2)', dir: '双向 · 地址 0x1a', drv: 'ASoC + WM8960' },
+  { f: '音频数据', pin: 'SAI2_MCLK / BCLK / LRCLK / TXD / RXD', mux: 'ALT? (SAI2)', dir: 'I2S 全双工', drv: 'fsl-sai' },
+  { f: '摄像头', pin: 'CSI + I2C1', mux: 'CSI 并口', dir: '输入 · 地址 0x3c', drv: 'V4L2 + OV5640' },
+  { f: '调试串口', pin: 'UART1_TXD / RXD', mux: 'ALT0 (UART1)', dir: '115200 8N1', drv: 'ttymxc0' },
+  { f: '以太网', pin: 'ENET1 (RMII)', mux: 'ALT0', dir: '100Mbps 全双工', drv: 'fec' }
+];
+
+const stack = [
+  { l: '应用层', v: '静态站点（HTML/CSS）· Qt 课程设计', c: '#fff' },
+  { l: '服务层', v: 'Nginx 1.14 · frpc 0.58', c: '#fff5f0' },
+  { l: '文件系统', v: 'ext4 rootfs · SD / eMMC', c: '#fff' },
+  { l: '内核层', v: 'Linux 4.1.15 · led / gpio / ASoC / V4L2 / net', c: '#f4f4f5' },
+  { l: '硬件层', v: 'i.MX6ULL · Cortex-A7 792MHz · 512MB DDR3', c: '#fff' }
+];
+
+const toolchain = [
+  ['交叉编译器', 'gcc-linaro-4.9.4-2017.01-x86_64_arm-linux-gnueabihf', 'gcc 4.9.4'],
+  ['Bootloader', 'u-boot 2016.03（厂商 BSP）', ''],
+  ['内核', 'Linux 4.1.15', 'armhf'],
+  ['根文件系统', 'BusyBox + 厂商 BSP 组件', ''],
+  ['图形库', 'Qt 5.12.9（ARM 版）', 'linuxfb'],
+  ['Web 服务', 'Nginx 1.14.2', 'armhf 包管理安装'],
+  ['内网穿透', 'frp 0.58', '客户端常驻板载'],
+  ['构建工具', 'Node 20 + Astro 5', '仅在 PC 上使用']
+];
+
+const buildCmd = `# 内核与设备树（宿主机）
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- imx_alientek_emmc_defconfig
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- zImage -j8
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- dtbs
+
+# 外部驱动模块
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- \\
+     -C /home/user/linux-imx M=$PWD modules
+
+# 站点（PC 上构建，绝不在板上构建）
+npm run build
+find dist -type f \\( -name '*.html' -o -name '*.css' \\) -exec gzip -9 -k {} \\;
+
+# 烧录（TF 卡）
+sudo dd if=u-boot.imx of=/dev/sdb bs=512 seek=2 conv=fsync
+sudo cp zImage imx6ull-alientek-emmc.dtb /media/user/boot/`;
+
+const tree = `embeded_web/
+├── astro.config.mjs          站点配置（域名 / 输出模式）
+├── package.json
+├── deploy/
+│   ├── deploy.sh             构建 + rsync 到开发板
+│   ├── nginx.conf            板上 Nginx 站点配置
+│   ├── status-collector.sh   生成 status.json 的采集脚本
+│   ├── frpc.toml             开发板 frp 客户端
+│   ├── frps.toml             公网服务器 frp 服务端
+│   └── SERVER-SETUP.md       公网服务器手动初始化步骤
+├── public/
+│   ├── favicon.svg
+│   └── status.json           运行状态快照（板上定时覆盖）
+├── src/
+│   ├── content/
+│   │   ├── lab/              8 篇实验日志（Markdown）
+│   │   └── note/             4 篇技术选型分析
+│   ├── components/
+│   │   ├── Header.astro
+│   │   ├── Footer.astro
+│   │   ├── SectionHead.astro
+│   │   ├── ArchDiagram.astro  部署链路图（内联 SVG）
+│   │   └── Icon.astro
+│   ├── data/site.ts          全站文案、导航、指标
+│   ├── layouts/Base.astro
+│   ├── pages/                首页 / 实验 / 项目 / 课程设计 / 文档 / 选型 / 源码 / 素材 / 关于
+│   └── styles/global.css     全站唯一样式表
+└── README.md`;
+---
+
+<Base title="设计文档" description="系统设计文档：分层结构、引脚分配、工具链版本、构建与烧录流程、目录结构与接口约定。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>设计文档</span>
+      </div>
+      <h1>系统设计文档</h1>
+      <p>
+        这一页记录「系统是怎么搭起来的」：软硬件分层、引脚怎么分配、用什么版本的工具链、
+        怎么从源码走到板上能跑的镜像。目标是可以照着复现。
+      </p>
+    </div>
+  </section>
+
+  <!-- 1 分层 -->
+  <section class="section">
+    <div class="container">
+      <SectionHead eyebrow="01 / 总览" title="五层结构，每层只解决一件事" />
+      <div class="layers">
+        {stack.map((s, i) => (
+          <div class="layer" style={`background:${s.c}`}>
+            <span class="layer__n">{String(i + 1).padStart(2, '0')}</span>
+            <span class="layer__l">{s.l}</span>
+            <span class="layer__v">{s.v}</span>
+          </div>
+        ))}
+      </div>
+      <p class="small" style="margin-top:16px;">
+        站点只用到最上面两层，与内核驱动层没有直接耦合——这也是它能稳定运行的原因：
+        换内核、换驱动都不影响网页本身。
+      </p>
+    </div>
+  </section>
+
+  <!-- 2 引脚 -->
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead
+        eyebrow="02 / 硬件"
+        title="引脚分配表"
+        desc="所有外设的引脚、复用方式、电平有效性与对应驱动。改板时只改设备树，驱动不动。"
+      />
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>功能</th><th>引脚</th><th>复用</th><th>方向 / 电平</th><th>驱动</th></tr>
+          </thead>
+          <tbody>
+            {pins.map((p) => (
+              <tr>
+                <td><strong>{p.f}</strong></td>
+                <td class="mono">{p.pin}</td>
+                <td class="mono">{p.mux}</td>
+                <td>{p.dir}</td>
+                <td class="mono">{p.drv}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="small" style="margin-top:14px;">
+        pad 名与复用编号以芯片 Reference Manual 第 32 章（IOMUXC）和实际底板原理图为准，
+        上表是配置时使用的逻辑引脚。
+      </p>
+    </div>
+  </section>
+
+  <!-- 3 工具链 -->
+  <section class="section">
+    <div class="container">
+      <SectionHead
+        eyebrow="03 / 软件栈"
+        title="工具链与版本"
+        desc="嵌入式项目里版本是硬约束：换一个 gcc 小版本，内核模块就可能加载失败。"
+      />
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>组件</th><th>版本 / 名称</th><th>备注</th></tr>
+          </thead>
+          <tbody>
+            {toolchain.map((t) => (
+              <tr>
+                <td><strong>{t[0]}</strong></td>
+                <td class="mono">{t[1]}</td>
+                <td class="muted">{t[2]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 构建 -->
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead
+        eyebrow="04 / 构建"
+        title="从源码到可运行镜像"
+        desc="内核、驱动、站点三套构建彼此独立，可以分别更新。"
+      />
+      <pre class="code"><code>{buildCmd}</code></pre>
+    </div>
+  </section>
+
+  <!-- 5 目录 -->
+  <section class="section">
+    <div class="container">
+      <SectionHead eyebrow="05 / 结构" title="仓库目录" />
+      <div class="grid-2" style="gap:32px; align-items:start;">
+        <pre class="code"><code>{tree}</code></pre>
+        <div>
+          <h3 style="margin-bottom:12px;">三条约定</h3>
+          <ul class="rules">
+            <li>
+              <strong>内容与代码分离。</strong>
+              实验日志是 <span class="mono">src/content/lab/*.md</span>，只写 Markdown，
+              不碰任何模板；加一篇就是加一个文件。
+            </li>
+            <li>
+              <strong>文案集中在 <span class="mono">data/site.ts</span>。</strong>
+              站名、导航、指标数字都从这里取，改一处全站生效。
+            </li>
+            <li>
+              <strong>部署脚本只管搬运。</strong>
+              <span class="mono">deploy.sh</span> 只做「构建 → 预压缩 → rsync」，
+              不含任何板子侧的路由或服务配置。
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 接口约定 -->
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead
+        eyebrow="06 / 接口"
+        title="status.json 数据契约"
+        desc="板上脚本每 10 秒生成一次，首页读取它刷新状态面板。字段固定，缺失则回退到构建时快照。"
+      />
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>字段</th><th>来源</th><th>示例</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">host</td><td><span class="mono">hostname</span></td><td class="mono">imx6ull-alpha</td></tr>
+            <tr><td class="mono">kernel</td><td><span class="mono">uname -r</span></td><td class="mono">4.1.15</td></tr>
+            <tr><td class="mono">uptime</td><td><span class="mono">/proc/uptime</span></td><td class="mono">6d 04:12</td></tr>
+            <tr><td class="mono">mem</td><td><span class="mono">/proc/meminfo</span></td><td class="mono">58 / 512 MB</td></tr>
+            <tr><td class="mono">nginx</td><td><span class="mono">nginx -v</span> + ps</td><td class="mono">1.14.2 · 1 worker</td></tr>
+            <tr><td class="mono">tunnel</td><td>frpc 状态</td><td class="mono">frp 0.58 · 已连通</td></tr>
+            <tr><td class="mono">collectedAt</td><td>采集时间</td><td class="mono">2026-11-08 15:40</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small" style="margin-top:14px;">
+        采集脚本见 <a href="/source/">源码与产物</a> 中的
+        <span class="mono">deploy/status-collector.sh</span>。
+      </p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .layers {
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    overflow: hidden;
+  }
+  .layer {
+    display: grid;
+    grid-template-columns: 44px 90px 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .layer:last-child {
+    border-bottom: 0;
+  }
+  .layer__n {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .layer__l {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .layer__v {
+    font-size: 13.5px;
+    color: var(--ink-3);
+    font-family: var(--mono);
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: #fff;
+  }
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .tbl th,
+  .tbl td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .tbl thead th {
+    background: var(--soft);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+  .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .tbl .mono {
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .code {
+    background: var(--navy);
+    color: #dbe3ec;
+    border-radius: var(--r);
+    padding: 20px 22px;
+    overflow-x: auto;
+    font-size: 12.4px;
+    line-height: 1.85;
+    margin: 0;
+  }
+  .code code {
+    font-family: var(--mono);
+    white-space: pre;
+  }
+  .rules li {
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+    color: var(--ink-3);
+    line-height: 1.7;
+  }
+  .rules li:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .rules strong {
+    display: block;
+    color: var(--ink);
+    font-size: 14.5px;
+    margin-bottom: 2px;
+  }
+  @media (max-width: 720px) {
+    .layer {
+      grid-template-columns: 36px 1fr;
+    }
+    .layer__v {
+      grid-column: 2;
+      margin-top: 4px;
+    }
+  }
+</style>

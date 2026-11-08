@@ -1,0 +1,254 @@
+---
+import Base from '../../layouts/Base.astro';
+import SectionHead from '../../components/SectionHead.astro';
+import { snapshot, site } from '../../data/site';
+
+const fields = [
+  ['host', '主机名', snapshot.host, 'hostname'],
+  ['kernel', '内核版本', snapshot.kernel, 'uname -r'],
+  ['uptime', '连续运行', snapshot.uptime, '/proc/uptime'],
+  ['mem', '内存占用', snapshot.mem, '/proc/meminfo'],
+  ['nginx', 'Nginx 进程', snapshot.nginx, 'nginx -v + ps'],
+  ['tunnel', '隧道状态', snapshot.tunnel, 'frpc 状态'],
+  ['tls', '证书与协议', snapshot.tls, '公网服务器 Nginx'],
+  ['collectedAt', '采集时间', snapshot.collectedAt, 'date']
+];
+
+const collector = `#!/bin/sh
+# /usr/local/bin/status-collector.sh
+# 由 systemd timer 每 10 秒执行一次，原子写出 status.json
+OUT=/var/www/site/status.json
+TMP="$OUT.new"
+
+UP=$(cut -d. -f1 /proc/uptime)
+D=$((UP / 86400))
+H=$(((UP % 86400) / 3600))
+M=$(((UP % 3600) / 60))
+
+MEM_TOTAL=$(awk '/MemTotal/     {printf "%d", $2/1024}' /proc/meminfo)
+MEM_AVAIL=$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo)
+MEM_USED=$((MEM_TOTAL - MEM_AVAIL))
+
+NGX_VER=$(nginx -v 2>&1 | sed 's#.*/##')
+NGX_RSS=$(ps -o rss= -C nginx | awk '{s+=\\$1} END {printf "%.1f", s/1024}')
+
+TUNNEL="frp · 未连接"
+if pgrep -x frpc >/dev/null 2>&1; then
+  FRP_VER=$(frpc -v 2>/dev/null | awk '{print $3}')
+  TUNNEL="frp \${FRP_VER:-?} · 已连通"
+fi
+
+cat > "$TMP" <<JSON
+{
+  "host": "$(hostname)",
+  "kernel": "$(uname -r)",
+  "uptime": "\${D}d \${H}h \${M}m",
+  "mem": "\${MEM_USED} / \${MEM_TOTAL} MB",
+  "nginx": "\${NGX_VER} · worker rss \${NGX_RSS}MB",
+  "tunnel": "\${TUNNEL}",
+  "tls": "TLS 1.3 · 公网终结",
+  "collectedAt": "$(date '+%Y-%m-%d %H:%M')"
+}
+JSON
+
+mv "$TMP" "$OUT"   # 原子替换，避免前端读到半个文件`;
+
+const timer = `# /etc/systemd/system/status-collector.service
+[Unit]
+Description=Collect board status into status.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/status-collector.sh
+
+# /etc/systemd/system/status-collector.timer
+[Unit]
+Description=Run status collector every 10s
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=10s
+
+[Install]
+WantedBy=timers.target
+
+systemctl daemon-reload
+systemctl enable --now status-collector.timer`;
+---
+
+<Base title="运行状态" description="开发板实时运行状态：内核版本、内存占用、Nginx 进程、隧道状态。数据由板上脚本每 10 秒采集。">
+  <section class="page-head">
+    <div class="container">
+      <div class="crumbs">
+        <a href="/">首页</a><span>/</span><span>运行状态</span>
+      </div>
+      <h1>运行状态</h1>
+      <p>
+        这一页回答一个朴素的问题：<strong>内容真的是这块板子发出来的吗？</strong>
+        下面的数据由板上脚本读取 <span class="mono">/proc</span> 生成，每 10 秒更新一次。
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="status-bar">
+        <span class="dot-live"></span>
+        <span>采集正常</span>
+        <span class="mono" id="st-collectedAt">{snapshot.collectedAt}</span>
+        <span class="status-bar__sp"></span>
+        <span class="mono">source · /var/www/site/status.json</span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>字段</th><th>含义</th><th>当前值</th><th>数据来源</th></tr>
+          </thead>
+          <tbody>
+            {fields.map(([k, label, val, src]) => (
+              <tr>
+                <td class="mono">{k}</td>
+                <td>{label}</td>
+                <td class="val" id={`st-${k}`}>{val}</td>
+                <td class="mono muted">{src}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="small" style="margin-top:14px;">
+        若页面显示的是构建时快照（时间戳较早），说明 <span class="mono">status.json</span>
+        未就绪或采集脚本未启动——此时前端会自动回退，不影响页面可用性。
+      </p>
+    </div>
+  </section>
+
+  <section class="section section--soft">
+    <div class="container">
+      <SectionHead
+        eyebrow="实现"
+        title="为什么要用「定时生成 JSON」而不是后端接口"
+        desc="静态站拿不到实时数据，但为了一行状态就常驻一个 Node 进程并不划算。"
+      />
+      <div class="grid-2" style="gap:40px; align-items:start;">
+        <div class="stack-16" style="font-size:15px; color:var(--ink-3);">
+          <p>
+            三种做法：<strong>常驻 Node 接口</strong>（60–120MB 内存）、<strong>CGI 脚本</strong>（&lt;1MB，但每请求 fork 一次）、
+            <strong>定时生成静态 JSON</strong>（零常驻，前端只发一个静态请求）。
+          </p>
+          <p>
+            状态数据的时效要求是「十秒级」，不是「毫秒级」。这种情况下定时生成完全够用，
+            而且它把 <em>采集</em> 和 <em>服务</em> 彻底解耦：采集挂了，站点照常可用，只是数字不更新。
+          </p>
+          <p>
+            还有一个细节：写入用 <span class="mono">mv</span> 原子替换，
+            否则前端可能读到只写了一半的文件，JSON 解析直接失败。
+          </p>
+        </div>
+        <div>
+          <div class="code-label">/usr/local/bin/status-collector.sh</div>
+          <pre class="code"><code>{collector}</code></pre>
+        </div>
+      </div>
+
+      <div style="margin-top:28px;">
+        <div class="code-label">systemd timer · 每 10 秒触发</div>
+        <pre class="code"><code>{timer}</code></pre>
+      </div>
+
+      <p class="small" style="margin-top:18px;">
+        回首页查看状态面板 →
+        <a href="/" style="color:var(--brand-dark);">首页</a>；
+        完整架构见 <a href="/project/" style="color:var(--brand-dark);">课程项目</a>。
+      </p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: var(--r) var(--r) 0 0;
+    background: var(--soft);
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .status-bar__sp {
+    flex: 1;
+  }
+  .status-bar .mono {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 0 0 var(--r) var(--r);
+    background: #fff;
+  }
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .tbl th,
+  .tbl td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tbl thead th {
+    background: var(--soft);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .tbl .val {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .code {
+    background: var(--navy);
+    color: #dbe3ec;
+    border-radius: var(--r);
+    padding: 20px 22px;
+    overflow-x: auto;
+    font-size: 12.2px;
+    line-height: 1.8;
+    margin: 0;
+  }
+  .code code {
+    font-family: var(--mono);
+    white-space: pre;
+  }
+  .code-label {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+</style>
+
+<script is:inline>
+  fetch('/status.json', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then((d) => {
+      Object.keys(d).forEach((k) => {
+        const el = document.getElementById('st-' + k);
+        if (el) el.textContent = d[k];
+      });
+    })
+    .catch(() => {});
+</script>

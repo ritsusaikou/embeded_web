@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
 # ============================================================
-# 轻痕博客 · 一键部署脚本
-# 本地构建 + rsync 增量上传到 512MB Linux 服务器
+# 构建 + 发布到 i.MX6ULL 开发板
 #
-# 首次使用前：
-#   1. 修改下面的 SERVER / DEST 变量
-#   2. 服务器上执行一次初始化（见 README「服务器初始化」）
+# 用法：
+#   BOARD=root@192.168.1.50 npm run deploy
+#   （不传环境变量则使用下面的默认值）
+#
+# 前提：PC 与板子同网段，且已配置 SSH 免密登录
 # ============================================================
 set -euo pipefail
 
-# ---------- 按需修改这两行 ----------
-SERVER="user@your-server-ip"          # SSH 目标
-DEST="/var/www/blog"                  # 服务器上的站点目录
-# ------------------------------------
+BOARD="${BOARD:-root@192.168.1.50}"
+DEST="${DEST:-/var/www/site}"
 
-echo "==> 构建静态站点..."
+echo "==> [1/4] 构建静态站点"
 npm run build
 
-echo "==> 上传到 ${SERVER}:${DEST} ..."
-# --delete 保证远端与本地完全一致；-z 传输时压缩
-rsync -avz --delete dist/ "${SERVER}:${DEST}/"
+echo "==> [2/4] 预压缩（板上 Nginx 用 gzip_static 直接发 .gz）"
+find dist -type f \
+  \( -name '*.html' -o -name '*.css' -o -name '*.xml' -o -name '*.json' -o -name '*.svg' \) \
+  -exec gzip -9 -k -f {} \;
 
-echo "==> 完成！站点已更新。"
-ssh "${SERVER}" "nginx -s reload" || echo "（提示：nginx reload 可在服务器上手动执行）"
+echo "==> [3/4] 同步到 ${BOARD}:${DEST}"
+rsync -avz --delete dist/ "${BOARD}:${DEST}/"
+
+echo "==> [4/4] 重载板上 Nginx"
+ssh "${BOARD}" "nginx -t && nginx -s reload"
+
+echo "==> 完成：站点已更新"

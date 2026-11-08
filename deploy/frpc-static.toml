@@ -1,0 +1,35 @@
+# ============================================================
+# 开发板 · frp 客户端配置（方案 B：frpc 自己当 Web 服务器）
+# 部署：/etc/frp/frpc.toml
+# 板上不需要 Nginx，静态文件由 frpc 的 static_file 插件直接发。
+#
+# 与 frpc.toml 的区别：那份是「本地转发到 127.0.0.1:80」，
+# 需要板上另外跑一个 Web 服务器；这份把 Web 服务也塞进 frpc。
+# ============================================================
+
+serverAddr = "112.124.58.134"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "3edc37ef6bca4f276c4d0c6ba3c9421d"
+
+# 关键：开机时网络往往还没起来，frpc 默认登录失败一次就退出（loginFailExit=true），
+# 结果是每次重启都掉线、必须手动 start。设成 false 让它一直重试，网络一通就自己连上。
+loginFailExit = false
+
+# 隧道内再加密一层（公网传输）
+transport.tls.enable = true
+# 校园网/家用路由器会清理空闲 NAT 表项，心跳保证连接不被回收
+transport.heartbeatInterval = 10
+transport.heartbeatTimeout = 30
+transport.tcpMux = true
+
+[[proxies]]
+name = "board-web"
+type = "tcp"
+remotePort = 8080
+
+# 关键：static_file 插件，frpc 直接读本地目录发文件
+[proxies.plugin]
+type = "static_file"
+localPath = "/var/www/site"

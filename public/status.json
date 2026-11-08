@@ -1,0 +1,10 @@
+{
+  "host": "imx6ull-alpha",
+  "kernel": "4.1.15",
+  "uptime": "6d 04:12",
+  "mem": "58 / 512 MB",
+  "nginx": "1.14.2 · 1 worker",
+  "tunnel": "frp 0.58 · 已连通",
+  "tls": "TLS 1.3 · 公网终结",
+  "collectedAt": "2026-11-08 15:40"
+}
