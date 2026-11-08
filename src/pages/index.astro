@@ -1,0 +1,29 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import PostCard from '../components/PostCard.astro';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf()
+);
+const recent = posts.slice(0, 10);
+---
+
+<Base title="" description="轻痕 —— 一个安静写字的地方：技术、生活与思考。">
+  <section class="hero">
+    <h1>把想法轻轻放下，留一道痕迹。</h1>
+    <p>这里记录技术实践、读书笔记与一些随想。全站纯静态，轻得可以跑在 512MB 的小机器上。</p>
+  </section>
+
+  <section class="post-list" aria-label="最新文章">
+    {recent.map((post) => <PostCard post={post} />)}
+  </section>
+
+  {
+    posts.length > 10 && (
+      <p style="margin-top:2.5rem; text-align:center;">
+        <a href="/archive/">查看全部 {posts.length} 篇文章 →</a>
+      </p>
+    )
+  }
+</Base>
