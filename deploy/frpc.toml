@@ -13,6 +13,10 @@ serverPort = 7000
 auth.method = "token"
 auth.token = "3edc37ef6bca4f276c4d0c6ba3c9421d"   # 必须与服务器 frps.toml 完全一致
 
+# 开机时网络往往还没就绪。默认 loginFailExit=true 会让 frpc 登录失败一次就退出，
+# 表现为每次重启站点都 502、手动启动又立刻好。设 false 让它一直重试。
+loginFailExit = false
+
 # 隧道内再加密一层（公网传输，建议开启）
 transport.tls.enable = true
 # 校园网/家用路由器会清理空闲 NAT 表项，心跳保证连接不被回收
