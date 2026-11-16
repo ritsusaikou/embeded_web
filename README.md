@@ -35,7 +35,8 @@ npm run preview  # 预览构建产物
 
 **第 1 步 · 公网服务器（只做一次，纯手动）**
 
-完整逐条操作见 **[deploy/SERVER-SETUP.md](deploy/SERVER-SETUP.md)**，含每步的验证命令与故障对照表。
+完整逐条操作见 **[deploy/DEPLOY.md](deploy/DEPLOY.md)**，含两种 Web 服务方案的原理、
+实现与故障对照表。
 流程概要：
 
 ```bash
@@ -59,17 +60,27 @@ sudo systemctl enable --now frps
 
 **第 2 步 · 开发板（只做一次）**
 
-```bash
-# 安装 nginx 与 frpc，然后：
-sudo cp deploy/nginx.conf /etc/nginx/conf.d/site.conf
-sudo cp deploy/frpc.toml /etc/frp/frpc.toml     # 改 serverAddr 与 token
-sudo mkdir -p /var/www/site
-sudo systemctl enable --now nginx frpc
+板子是 Yocto + sysvinit，没有 systemd，所以 nginx 靠 `/etc/rc5.d/S92nginx` 自启，
+frpc 用自带的 init 脚本：
 
-# 状态采集（可选，用于首页状态面板）
-sudo install -m 755 deploy/status-collector.sh /usr/local/bin/
-sudo systemctl enable --now status-collector.timer
+```bash
+# ① 站点配置：放 /etc/nginx/conf.d/site.conf
+#    Yocto 默认的 nginx.conf 没有 include conf.d/*.conf，要先补这一行
+cp deploy/nginx.conf /etc/nginx/conf.d/site.conf
+/usr/sbin/nginx -t && /usr/sbin/nginx -s reload
+
+# ② frpc：二进制 + 配置 + 自启
+cp deploy/frpc.toml /etc/frp/frpc.toml          # 改 serverAddr 与 token
+install -m 755 deploy/frpc.init /etc/init.d/frpc
+ln -sf /etc/init.d/frpc /etc/rc5.d/S99frpc
+/etc/init.d/frpc start
+
+# ③ 状态采集（可选，用于首页状态面板）
+install -m 755 deploy/status-collector.sh /usr/local/bin/
 ```
+
+> 想让板上完全不依赖 nginx，可改用 `deploy/frpc-static.toml`（frpc 自带静态文件服务），
+> 代价是没有 gzip、缓存头和自定义 404。两种方案的对比与互切见 `DEPLOY.md` 第 1、5 节。
 
 **第 3 步 · 每次发布（本机）**
 
