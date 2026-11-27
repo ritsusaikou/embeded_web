@@ -18,7 +18,8 @@ npm run build
 
 echo "==> [2/4] 预压缩（板上 Nginx 用 gzip_static 直接发 .gz）"
 find dist -type f \
-  \( -name '*.html' -o -name '*.css' -o -name '*.xml' -o -name '*.json' -o -name '*.svg' \) \
+  \( -name '*.html' -o -name '*.css' -o -name '*.js' -o -name '*.xml' \
+     -o -name '*.json' -o -name '*.svg' \) \
   -exec gzip -9 -k -f {} \;
 
 echo "==> [3/4] 同步到 ${BOARD}:${DEST}"

@@ -1,36 +1,76 @@
 #!/bin/sh
+### BEGIN INIT INFO
+# Provides:          frpc
+# Required-Start:    $network $remote_fs
+# Required-Stop:     $network $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: frp client — 把板上 80 端口的静态站经反向隧道发布到公网
+### END INIT INFO
 #
-# frpc · 把开发板上的静态站点经 frps 反向隧道发布到公网
-# 板子是 Yocto + sysvinit，没有 systemd，所以用 LSB 风格的 init 脚本。
+# 板子是 Yocto + sysvinit（没有 systemd），所以用 LSB 风格的 init 脚本。
 #
 # 用法：
 #   /etc/init.d/frpc start|stop|restart|status
 # 开机自启：
 #   ln -sf /etc/init.d/frpc /etc/rc5.d/S99frpc
+#   ln -sf /etc/init.d/frpc /etc/rc0.d/K01frpc
+#   ln -sf /etc/init.d/frpc /etc/rc6.d/K01frpc
+#
+# 日志放在 /var/lib/frpc/（rootfs 上，持久化），不放 /var/log
+# —— Yocto 的 /var/log 是指向 /var/volatile/log 的软链，tmpfs，断电即丢。
 
 DAEMON=/usr/local/bin/frpc
 CONF=/etc/frp/frpc.toml
 PIDFILE=/var/run/frpc.pid
-LOG=/var/log/frpc.log
+LOGDIR=/var/lib/frpc
+LOG=$LOGDIR/frpc.log
+MAXLOG=2097152          # 2MB，超过就只保留末尾 256KB
+SERVER=112.124.58.134   # 用来判断网络是否就绪，和 frpc.toml 的 serverAddr 一致
 
 is_running() {
-    [ -f "$PIDFILE" ] && kill -0 "$(cat $PIDFILE)" 2>/dev/null
+    [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null
+}
+
+rotate() {
+    mkdir -p "$LOGDIR"
+    [ -f "$LOG" ] || return 0
+    sz=$(wc -c < "$LOG" 2>/dev/null || echo 0)
+    if [ "$sz" -gt "$MAXLOG" ]; then
+        tail -c 262144 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+    fi
+}
+
+# 开机时 connman 往往还没从 DHCP 拿到地址，这时候 frpc 会登录失败。
+# frpc.toml 里 loginFailExit=false 会自己重试，这里再等最多 30s 减少无谓重试。
+wait_net() {
+    i=0
+    while [ $i -lt 30 ]; do
+        ping -c1 -W1 "$SERVER" >/dev/null 2>&1 && return 0
+        sleep 1
+        i=$((i + 1))
+    done
+    return 1
 }
 
 case "$1" in
     start)
         if is_running; then
-            echo "frpc already running (pid $(cat $PIDFILE))"
+            echo "frpc already running (pid $(cat "$PIDFILE"))"
             exit 0
         fi
+        rotate
         echo -n "Starting frpc: "
+        wait_net
         "$DAEMON" -c "$CONF" >>"$LOG" 2>&1 &
-        echo $! >"$PIDFILE"
-        sleep 1
+        echo $! > "$PIDFILE"
+        sleep 2
         if is_running; then
-            echo "ok (pid $(cat $PIDFILE))"
+            echo "ok (pid $(cat "$PIDFILE"))"
         else
-            echo "failed, see $LOG"
+            echo "failed, 末尾日志："
+            tail -n 5 "$LOG" 2>/dev/null
+            rm -f "$PIDFILE"
             exit 1
         fi
         ;;
@@ -41,9 +81,10 @@ case "$1" in
             exit 0
         fi
         echo -n "Stopping frpc: "
-        kill "$(cat $PIDFILE)" 2>/dev/null
-        sleep 1
-        is_running && kill -9 "$(cat $PIDFILE)" 2>/dev/null
+        kill "$(cat "$PIDFILE")" 2>/dev/null
+        i=0
+        while is_running && [ $i -lt 5 ]; do sleep 1; i=$((i + 1)); done
+        is_running && kill -9 "$(cat "$PIDFILE")" 2>/dev/null
         rm -f "$PIDFILE"
         echo "ok"
         ;;
@@ -54,10 +95,10 @@ case "$1" in
         ;;
     status)
         if is_running; then
-            echo "frpc running (pid $(cat $PIDFILE))"
+            echo "frpc running (pid $(cat "$PIDFILE"))"
         else
             echo "frpc stopped"
-            exit 1
+            exit 3
         fi
         ;;
     *)

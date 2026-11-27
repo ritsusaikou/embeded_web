@@ -1,0 +1,64 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          set-mac
+# Required-Start:
+# Required-Stop:
+# Default-Start:     5
+# Default-Stop:
+# Short-Description: 固定 eth0 / eth1 的 MAC 地址
+### END INIT INFO
+#
+# 为什么需要这个脚本
+# ------------------
+# 这块 i.MX6ULL 的设备树里 local-mac-address 是全 0：
+#     od -An -tx1 /sys/firmware/devicetree/base/soc/.../ethernet@02188000/local-mac-address
+#     00 00 00 00 00 00
+# 内核 fec 驱动发现没有可用 MAC，就用 eth_hw_addr_random() 随机生成一个
+# （所以每次开机 MAC 首字节都带"本地管理位"，比如 32:.. / 5e:..）。
+#
+# 而 connman 的以太网服务是按 MAC 命名的：ethernet_<MAC去掉冒号>_cable
+# MAC 一变，服务名就变，之前在旧服务名下配的静态 IP 就永远匹配不上，
+# 只能退回 DHCP —— 表现就是"设了静态 IP，一重启又变回别的地址"。
+#
+# 所以必须在 connman（rc5.d/S05connman）之前把 MAC 钉死。
+# 装在 rc5.d/S04set-mac 即可。
+#
+# 注意：Linux 层改 MAC 只是"治标"，最根治的办法是在 U-Boot 里
+#   setenv ethaddr 88:60:44:c2:46:16
+#   setenv eth1addr aa:60:44:c2:46:16
+#   saveenv
+# 这样 DT 的 local-mac-address 会被正确 fixup，连这个脚本都不需要。
+# 但这块板子的镜像没带 fw_setenv，只能从串口进 U-Boot 改，风险更高。
+
+IFCONFIG=/sbin/ifconfig
+
+set_mac() {
+    iface=$1
+    mac=$2
+    [ -e "/sys/class/net/$iface" ] || return 0
+    cur=$(cat "/sys/class/net/$iface/address" 2>/dev/null)
+    if [ "$cur" = "$mac" ]; then
+        return 0
+    fi
+    echo "set-mac: $iface $cur -> $mac"
+    $IFCONFIG "$iface" down 2>/dev/null
+    $IFCONFIG "$iface" hw ether "$mac" 2>/dev/null
+    $IFCONFIG "$iface" up 2>/dev/null
+    return 0
+}
+
+case "$1" in
+    start|"")
+        set_mac eth0 88:60:44:c2:46:16
+        set_mac eth1 aa:60:44:c2:46:16
+        ;;
+    stop|restart|reload|force-reload)
+        # 无需处理：MAC 由驱动持有，恢复随机值没有意义
+        ;;
+    *)
+        echo "Usage: $0 {start}"
+        exit 1
+        ;;
+esac
+
+exit 0
