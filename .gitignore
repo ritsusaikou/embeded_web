@@ -1,7 +1,8 @@
 # 依赖
 node_modules/
 
-# Astro 构建缓存
+# 构建产物与缓存（npm run build 可重现）
+dist/
 .astro/
 
 # 本工具的工作记录（不入库）
