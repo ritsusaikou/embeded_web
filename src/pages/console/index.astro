@@ -1,0 +1,1030 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../../components/Icon.astro';
+import { site } from '../../data/site';
+
+const AGENT = '/agent';
+---
+
+<Base
+  title="远程控制台"
+  description="通过浏览器访问 i.MX6ULL 开发板：WebSocket 终端（root shell）与屏幕实时镜像，经由板端 board-agent 与 frp 隧道。"
+>
+  <section class="page-head">
+    <div class="container">
+      <span class="eyebrow">远程控制台 · Remote Console</span>
+      <h1>板端远程控制台</h1>
+      <p class="lead" style="max-width: 62em;">
+        不再需要 Xshell 或串口线。<strong>终端</strong>走 WebSocket ↔ PTY，直接在网页里拿到板子的
+        root shell；<strong>远程桌面</strong>把 <code>/dev/fb0</code> 的增量块推到 canvas，
+        还原那块 1024×600 的屏幕。两条链路都穿过同一根 frp 隧道，没有额外开放任何端口。
+      </p>
+
+      <div class="console-meta">
+        <span><i class="dot-live" id="dot"></i><b id="conn-text">未连接</b></span>
+        <span>板卡 <b>{site.board.split('·')[0].trim()}</b></span>
+        <span>隧道 <b>{site.domain}</b></span>
+        <span>agent <b id="agent-ver">—</b></span>
+        <span>采样 <b id="agent-latency">—</b></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight">
+    <div class="container">
+      <!-- 连接条 -->
+      <div class="connbar">
+        <div class="connbar__left">
+          <span class="connbar__label">访问令牌</span>
+          <input
+            id="token"
+            class="input"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="粘贴板上 /etc/board-agent.token 的内容"
+          />
+          <button class="btn btn--ghost btn--sm" id="toggle-token" type="button">显示</button>
+        </div>
+        <div class="connbar__right">
+          <button class="btn btn--primary btn--sm" id="connect" type="button">连接</button>
+          <button class="btn btn--ghost btn--sm" id="disconnect" type="button" disabled>断开</button>
+        </div>
+      </div>
+
+      <!-- 标签 -->
+      <div class="tabs" role="tablist">
+        <button class="tab is-active" data-tab="shell" role="tab" type="button">
+          <Icon name="terminal" size={15} /> Shell 终端
+        </button>
+        <button class="tab" data-tab="desktop" role="tab" type="button">
+          <Icon name="image" size={15} /> 远程桌面
+        </button>
+        <span class="tabs__hint mono">token 只存在本标签页的 sessionStorage，关闭即失效</span>
+      </div>
+
+      <!-- 终端面板 -->
+      <div class="pane is-active" id="pane-shell">
+        <div class="pane__bar">
+          <span class="pane__dots"><i></i><i></i><i></i></span>
+          <span class="mono" id="shell-title">root@ATK-IMX6U: ~</span>
+          <span class="pane__spacer"></span>
+          <button class="mini" id="btn-clear" type="button">清屏</button>
+          <button class="mini" id="btn-reconnect" type="button">重连</button>
+        </div>
+        <div class="term-wrap">
+          <div class="term-host" id="terminal"></div>
+          <div class="overlay" id="shell-overlay">
+          <div class="overlay__box">
+            <Icon name="terminal" size={22} />
+            <h3>先填访问令牌，再连接</h3>
+            <p>
+              这块板子在公网上。shell 是 root 权限，所以 board-agent 要求
+              WebSocket 子协议里带一个 24 字符的随机令牌 ——
+              它躺在板子上的 <code>/etc/board-agent.token</code>。
+            </p>
+            <button class="btn btn--primary btn--sm" id="overlay-connect" type="button">用上面的令牌连接</button>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 桌面面板 -->
+      <div class="pane" id="pane-desktop">
+        <div class="pane__bar">
+          <span class="pane__dots"><i></i><i></i><i></i></span>
+          <span class="mono">framebuffer 1024×600 · RGB565</span>
+          <span class="pane__spacer"></span>
+          <select class="mini" id="fps">
+            <option value="1.5">0.7 fps</option>
+            <option value="0.8" selected>1.2 fps</option>
+            <option value="0.5">2 fps</option>
+          </select>
+          <button class="mini" id="btn-input" type="button">只读</button>
+          <button class="mini" id="btn-full" type="button">整屏刷新</button>
+          <button class="mini" id="btn-shot" type="button">截图</button>
+        </div>
+        <div class="screen-host">
+          <canvas id="screen" width="1024" height="600"></canvas>
+          <span class="ripple" id="ripple"></span>
+          <div class="overlay" id="desk-overlay">
+            <div class="overlay__box">
+              <Icon name="image" size={22} />
+              <h3>屏幕镜像</h3>
+              <p>
+                读取板上 <code>/dev/fb0</code>，只推变化的 64×64 块，静止画面零流量。
+                一次全屏约 1.2MB，之后每次刷新通常只有几 KB。
+              </p>
+              <button class="btn btn--primary btn--sm" id="overlay-desktop" type="button">看板子的屏幕</button>
+            </div>
+          </div>
+        </div>
+        <div class="apps-bar" id="apps-bar">
+          <span class="apps-bar__hint" id="ctl-hint">遥控</span>
+          <button class="chip chip--desk" id="btn-desk" type="button">回桌面</button>
+        </div>
+        <div class="pane__bar pane__bar--foot">
+          <span class="mono" id="fb-stats">未接收数据</span>
+          <span class="pane__spacer"></span>
+          <span class="mono ro" id="input-hint">只读 · 点「只读」切成可交互</span>
+        </div>
+      </div>
+
+      <div class="notes3">
+        <div>
+          <h4>链路</h4>
+          <p>
+            浏览器 → <code>wss://{site.domain}/agent/ws/…</code> → 服务器 nginx →
+            frps:8080 → 板上 nginx:80 → <code>127.0.0.1:7681</code>。
+            agent 只监听回环地址，公网只能经 nginx 进。
+          </p>
+        </div>
+        <div>
+          <h4>为什么桌面是只读的</h4>
+          <p>
+            GUI 是 Qt Quick + <code>linuxfb</code> 插件（不经过 X11），内核里也没编 uinput 模块
+            —— 没有可写的事件设备，注入鼠标这件事在驱动层就不成立。
+          </p>
+        </div>
+        <div>
+          <h4>带宽</h4>
+          <p>
+            终端为纯文本，单次按键数十字节；屏幕仅推送变化块。画面静止时链路空闲，
+            窗口内容变化时才产生 8KB 级别的数据块。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .page-head {
+    padding: 58px 0 34px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #fff, var(--soft));
+  }
+  .page-head h1 {
+    margin: 16px 0 18px;
+  }
+  .console-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    margin-top: 26px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .console-meta b {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  .dot-live.is-off {
+    background: var(--muted);
+    box-shadow: 0 0 0 3px rgba(144, 144, 144, 0.16);
+  }
+  .dot-live.is-err {
+    background: #e5484d;
+    box-shadow: 0 0 0 3px rgba(229, 72, 77, 0.18);
+  }
+
+  .connbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: #fff;
+    box-shadow: var(--shadow-1);
+  }
+  .connbar__left,
+  .connbar__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .connbar__label {
+    font-size: 12.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .input {
+    width: min(420px, 52vw);
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--line-2);
+    border-radius: 7px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink);
+    background: var(--soft);
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .input:focus {
+    border-color: var(--brand);
+    background: #fff;
+  }
+
+  .tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 22px 0 14px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: none;
+    font-size: 13.5px;
+    color: var(--ink-3);
+  }
+  .tab:hover {
+    background: var(--soft-2);
+  }
+  .tab.is-active {
+    background: var(--ink);
+    color: #fff;
+    border-color: var(--ink);
+  }
+  .tabs__hint {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .pane {
+    display: none;
+    position: relative;
+    border-radius: var(--r);
+    overflow: hidden;
+    border: 1px solid #10161d;
+    background: #0f1419;
+    box-shadow: var(--shadow-2);
+  }
+  .pane.is-active {
+    display: block;
+  }
+  .pane__bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: #1a2129;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    color: #7d8896;
+    font-size: 11.5px;
+    font-family: var(--mono);
+  }
+  .pane__bar--foot {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 0;
+  }
+  .pane__dots {
+    display: flex;
+    gap: 6px;
+  }
+  .pane__dots i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #3a444f;
+    display: block;
+  }
+  .pane__spacer {
+    flex: 1;
+  }
+  .mini {
+    height: 24px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #c3ccd7;
+    font-size: 11.5px;
+    font-family: var(--mono);
+    cursor: pointer;
+  }
+  .mini:hover {
+    background: rgba(255, 255, 255, 0.11);
+    color: #fff;
+  }
+  /* 原生 select 的坑：UA 会把底色画成白/系统色，而 .mini 只给了半透明白，
+     于是浅灰字落在白底上，看起来像"白字白框融在一起"。
+     这里用不透明深色底 + color-scheme: dark（让下拉列表也跟着变深）+ 自绘箭头。 */
+  select.mini {
+    height: 24px;
+    padding: 0 20px 0 8px;
+    background-color: #232c36;
+    color: #dbe3ec;
+    border-color: rgba(255, 255, 255, 0.18);
+    color-scheme: dark;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'%3E%3Cpath d='M1 1l3 3 3-3' fill='none' stroke='%238b96a4' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+  }
+  select.mini:hover {
+    background-color: #2b3541;
+    color: #fff;
+  }
+  select.mini:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 1px;
+  }
+  select.mini option {
+    background-color: #232c36;
+    color: #dbe3ec;
+  }
+  .ro {
+    color: #6b7684;
+  }
+
+  .term-wrap {
+    position: relative;
+  }
+  .term-host {
+    height: min(62vh, 620px);
+    padding: 10px 12px 12px;
+  }
+  .term-host .xterm {
+    height: 100%;
+  }
+  .term-host .xterm-viewport {
+    overflow-y: auto;
+  }
+
+  .screen-host {
+    position: relative;
+    background: #000;
+    line-height: 0;
+  }
+  .screen-host.is-live {
+    cursor: crosshair;
+  }
+  .screen-host.is-live canvas {
+    touch-action: none;
+  }
+  .ripple {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 80, 0, 0.9);
+    background: rgba(255, 80, 0, 0.25);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 4;
+  }
+  .ripple.is-on {
+    animation: ripple 0.55s ease-out;
+  }
+  @keyframes ripple {
+    0% { transform: scale(0.6); opacity: 1; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  .apps-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 12px;
+    overflow-x: auto;
+    background: #12181f;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .apps-bar__hint {
+    flex: none;
+    font-size: 11.5px;
+    color: #6f7d8c;
+    margin-right: 2px;
+    letter-spacing: 0.02em;
+  }
+  .chip {
+    flex: none;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    color: #d6dee8;
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .chip:hover {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.24);
+  }
+  .chip:active {
+    transform: translateY(1px);
+  }
+  .chip--desk {
+    border-color: rgba(255, 120, 40, 0.5);
+    color: #ffb27a;
+  }
+  .mini.is-on {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
+  }
+  #screen {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #000;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(15, 20, 25, 0.72);
+    backdrop-filter: blur(2px);
+    z-index: 3;
+  }
+  .overlay.is-hidden {
+    display: none;
+  }
+  .pane__term-wrap {
+    position: relative;
+  }
+  .overlay__box {
+    max-width: 460px;
+    text-align: center;
+    color: #cbd3dd;
+  }
+  .overlay__box svg {
+    color: var(--brand);
+    margin: 0 auto 12px;
+  }
+  .overlay__box h3 {
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .overlay__box p {
+    font-size: 13px;
+    line-height: 1.75;
+    color: #9aa5b1;
+    margin-bottom: 16px;
+  }
+  .overlay__box code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .notes3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 26px;
+    margin-top: 30px;
+    padding-top: 26px;
+    border-top: 1px solid var(--line);
+  }
+  .notes3 h4 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .notes3 p {
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--muted);
+  }
+  .notes3 code {
+    font-size: 12px;
+    color: var(--ink-2);
+    background: var(--soft-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  @media (max-width: 860px) {
+    .input {
+      width: 100%;
+    }
+    .notes3 {
+      grid-template-columns: 1fr;
+    }
+    .tabs__hint {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  import { Terminal } from '@xterm/xterm';
+  import { FitAddon } from '@xterm/addon-fit';
+  import '@xterm/xterm/css/xterm.css';
+
+  const AGENT = '/agent';
+  const TOKEN_KEY = 'board.token';
+
+  const $ = (id: string) => document.getElementById(id) as HTMLElement;
+  const tokenInput = $('token') as HTMLInputElement;
+  const dot = $('dot');
+  const connText = $('conn-text');
+  const agentVer = $('agent-ver');
+  const latency = $('agent-latency');
+  const shellOverlay = $('shell-overlay');
+  const deskOverlay = $('desk-overlay');
+
+  let token = sessionStorage.getItem(TOKEN_KEY) || '';
+  let shellLive = false;
+  let deskLive = false;
+  if (token) tokenInput.value = token;
+
+  type State = 'idle' | 'ok' | 'err' | 'connecting';
+  function setState(s: State, text: string) {
+    dot.className = 'dot-live' + (s === 'err' ? ' is-err' : s === 'idle' ? ' is-off' : '');
+    connText.textContent = text;
+    if (s === 'ok') dot.style.background = '';
+  }
+
+  function wsUrl(path: string): string {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${proto}//${location.host}${AGENT}${path}`;
+  }
+
+  /* ---------------- 遥测（顶部状态条 + 探测延迟） ---------------- */
+  async function poll() {
+    const t0 = performance.now();
+    try {
+      const r = await fetch(`${AGENT}/api/status`, { cache: 'no-store' });
+      if (!r.ok) throw new Error('http ' + r.status);
+      const d = await r.json();
+      latency.textContent = Math.round(performance.now() - t0) + ' ms';
+      agentVer.textContent = 'v' + d.ver;
+      if (shellLive || deskLive) return;
+      setState('ok', `在线 · ${d.host}`);
+    } catch {
+      latency.textContent = '—';
+      if (shellLive || deskLive) return;
+      setState('err', '板端不可达');
+    }
+  }
+  poll();
+  setInterval(poll, 5000);
+
+  /* ---------------- token ---------------- */
+  $('toggle-token').addEventListener('click', (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    tokenInput.type = tokenInput.type === 'password' ? 'text' : 'password';
+    btn.textContent = tokenInput.type === 'password' ? '显示' : '隐藏';
+  });
+  tokenInput.addEventListener('change', () => {
+    token = tokenInput.value.trim();
+    sessionStorage.setItem(TOKEN_KEY, token);
+  });
+
+  /* ---------------- 标签切换 ---------------- */
+  let activeTab: 'shell' | 'desktop' = 'shell';
+  document.querySelectorAll<HTMLButtonElement>('.tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.tab as 'shell' | 'desktop';
+      activeTab = name;
+      document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('is-active', b === btn));
+      $('pane-shell').classList.toggle('is-active', name === 'shell');
+      $('pane-desktop').classList.toggle('is-active', name === 'desktop');
+      if (name === 'shell') fit();
+    });
+  });
+
+  /* ---------------- 终端 ---------------- */
+  const term = new Terminal({
+    cursorBlink: true,
+    cursorStyle: 'bar',
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Courier New", monospace',
+    fontSize: 13,
+    lineHeight: 1.25,
+    scrollback: 2000,
+    theme: {
+      background: '#0f1419',
+      foreground: '#cbd3dd',
+      cursor: '#ff5000',
+      selectionBackground: 'rgba(255,80,0,0.28)',
+      black: '#1a2129',
+      red: '#e5484d',
+      green: '#5be3a5',
+      yellow: '#e2b93b',
+      blue: '#5b9cf8',
+      magenta: '#c77dff',
+      cyan: '#4dd0c1',
+      white: '#cbd3dd'
+    }
+  });
+  const fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
+  term.open($('terminal'));
+
+  function fit() {
+    try {
+      fitAddon.fit();
+    } catch {}
+  }
+  window.addEventListener('resize', fit);
+  setTimeout(fit, 60);
+
+  let shellSock: WebSocket | null = null;
+
+  function send(obj: unknown) {
+    if (shellSock && shellSock.readyState === 1) shellSock.send(JSON.stringify(obj));
+  }
+
+  term.onData((d) => send({ t: 'i', d }));
+  term.onResize(({ cols, rows }) => send({ t: 'r', c: cols, r: rows }));
+
+  function closeShell() {
+    if (shellSock) {
+      try {
+        shellSock.close();
+      } catch {}
+      shellSock = null;
+    }
+  }
+
+  function connectShell() {
+    if (!token) {
+      shellOverlay.classList.remove('is-hidden');
+      tokenInput.focus();
+      return;
+    }
+    closeShell();
+    setState('connecting', '正在握手…');
+    term.write('\r\n\x1b[38;5;208m##\x1b[0m 正在连接板端 shell…\r\n');
+
+    const sock = new WebSocket(wsUrl('/ws/shell'), ['board.v1', token]);
+    sock.binaryType = 'arraybuffer';
+    shellSock = sock;
+
+    sock.onopen = () => {
+      shellLive = true;
+      setState('ok', '已连接 · root');
+      shellOverlay.classList.add('is-hidden');
+      $('disconnect').removeAttribute('disabled');
+      send({ t: 'r', c: term.cols, r: term.rows });
+      term.focus();
+    };
+    sock.onmessage = (ev) => {
+      if (typeof ev.data === 'string') term.write(ev.data);
+      else term.write(new Uint8Array(ev.data as ArrayBuffer));
+    };
+    sock.onclose = () => {
+      shellLive = false;
+      setState('idle', '已断开');
+      $('disconnect').setAttribute('disabled', '');
+      term.write('\r\n\x1b[38;5;245m## 连接已关闭\x1b[0m\r\n');
+      shellSock = null;
+      if (!deskSock) shellOverlay.classList.remove('is-hidden');
+    };
+    sock.onerror = () => {
+      setState('err', '连接失败');
+      term.write('\r\n\x1b[31m## 握手失败：检查 token 是否正确\x1b[0m\r\n');
+    };
+  }
+
+  $('connect').addEventListener('click', () => {
+    token = tokenInput.value.trim();
+    sessionStorage.setItem(TOKEN_KEY, token);
+    if (activeTab === 'shell') connectShell();
+    else connectDesktop();
+  });
+  $('overlay-connect').addEventListener('click', () => connectShell());
+  $('overlay-desktop').addEventListener('click', () => {
+    loadApps();
+    connectDesktop();
+  });
+  $('btn-reconnect').addEventListener('click', () => connectShell());
+  $('btn-clear').addEventListener('click', () => term.clear());
+  $('disconnect').addEventListener('click', () => {
+    closeShell();
+    closeDesktop();
+    setState('idle', '已断开');
+  });
+
+  /* ---------------- 屏幕镜像 ---------------- */
+  const canvas = $('screen') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d', { alpha: false })!;
+  let deskSock: WebSocket | null = null;
+  let img: ImageData | null = null;
+  let px: Uint32Array | null = null;
+  let fbW = 1024;
+  let fbH = 600;
+  let recvBytes = 0;
+  let blocks = 0;
+  let lastFrameAt = 0;
+
+  // RGB565 -> RGBA 查表，避免逐像素位运算
+  const R8 = new Uint32Array(32);
+  const G8 = new Uint32Array(64);
+  const B8 = new Uint32Array(32);
+  for (let i = 0; i < 32; i++) R8[i] = ((i << 3) | (i >> 2)) & 0xff;
+  for (let i = 0; i < 64; i++) G8[i] = ((i << 2) | (i >> 4)) & 0xff;
+  for (let i = 0; i < 32; i++) B8[i] = ((i << 3) | (i >> 2)) & 0xff;
+
+  function ensureFrame(w: number, h: number) {
+    if (!img || w !== fbW || h !== fbH) {
+      fbW = w;
+      fbH = h;
+      canvas.width = w;
+      canvas.height = h;
+      img = ctx.createImageData(w, h);
+      px = new Uint32Array(img.data.buffer);
+      const a = px;
+      for (let i = 3; i < a.length; i += 4) a[i] = 255;
+    }
+  }
+
+  function blit(data: DataView, off: number, x: number, y: number, w: number, h: number) {
+    if (!img || !px) return;
+    const rowWords = w;
+    for (let j = 0; j < h; j++) {
+      let p = off + j * rowWords * 2;
+      let o = (y + j) * fbW + x;
+      for (let i = 0; i < w; i++) {
+        const v = data.getUint16(p, true);
+        p += 2;
+        px[o++] = 0xff000000 | (B8[v & 0x1f] << 16) | (G8[(v >> 5) & 0x3f] << 8) | R8[(v >> 11) & 0x1f];
+      }
+    }
+    ctx.putImageData(img, 0, 0, x, y, w, h);
+  }
+
+  function handleFrame(buf: ArrayBuffer) {
+    const dv = new DataView(buf);
+    const type = dv.getUint8(0);
+    recvBytes += buf.byteLength;
+    blocks++;
+    lastFrameAt = performance.now();
+    if (type === 1) {
+      const w = dv.getUint16(1);
+      const h = dv.getUint16(3);
+      ensureFrame(w, h);
+      blit(dv, 5, 0, 0, w, h);
+    } else if (type === 2) {
+      const x = dv.getUint16(1);
+      const y = dv.getUint16(3);
+      const w = dv.getUint16(5);
+      const h = dv.getUint16(7);
+      blit(dv, 9, x, y, w, h);
+    }
+    deskOverlay.classList.add('is-hidden');
+  }
+
+  /* ---------------- 交互：把网页上的指针事件注入成板子上的触摸 ----------------
+   * 板子内核没编 uinput，也没有可写的 evdev，所以走的是"在 Qt 读设备那一层开侧门"：
+   * LD_PRELOAD 的 touch-inject.so 拦截 poll/read，把这里发来的事件当成
+   * /dev/input/event1 的事件交给应用。物理触摸不受影响。
+   */
+  let inputSock: WebSocket | null = null;
+  let inputOn = false;
+  let lastMove = 0;
+  const host = document.querySelector('.screen-host') as HTMLElement;
+  const ripple = $('ripple');
+
+  function toCanvas(ev: PointerEvent) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: Math.round(((ev.clientX - r.left) / r.width) * canvas.width),
+      y: Math.round(((ev.clientY - r.top) / r.height) * canvas.height)
+    };
+  }
+
+  function sendInput(msg: unknown) {
+    if (inputSock && inputSock.readyState === 1) inputSock.send(JSON.stringify(msg));
+  }
+
+  function flash(x: number, y: number) {
+    const r = canvas.getBoundingClientRect();
+    const rHost = host.getBoundingClientRect();
+    ripple.style.left = (r.left - rHost.left) + (x / canvas.width) * r.width + 'px';
+    ripple.style.top = (r.top - rHost.top) + (y / canvas.height) * r.height + 'px';
+    ripple.classList.remove('is-on');
+    void (ripple as HTMLElement).offsetWidth;
+    ripple.classList.add('is-on');
+  }
+
+  function setInput(on: boolean) {
+    inputOn = on;
+    const btn = $('btn-input');
+    btn.textContent = on ? '可交互' : '只读';
+    btn.classList.toggle('is-on', on);
+    host.classList.toggle('is-live', on);
+    $('input-hint').textContent = on
+      ? '可交互 · 点击画面 = 板子上的触摸（物理触摸同时有效）'
+      : '只读 · 点「只读」切成可交互';
+
+    if (!on) {
+      sendInput({ t: 'up' });
+      if (inputSock) {
+        try { inputSock.close(); } catch {}
+        inputSock = null;
+      }
+      return;
+    }
+
+    if (!token) {
+      setState('err', '先填令牌');
+      setInput(false);
+      return;
+    }
+    const sock = new WebSocket(wsUrl('/ws/input'), ['board.v1', token]);
+    inputSock = sock;
+    sock.onopen = async () => {
+      setState('ok', '已连接 · 可交互');
+      // 板端没起注入通道时（没装 touch-inject.so），点了不会有反应，明说
+      try {
+        const r = await fetch(`${AGENT}/api/status`, { cache: 'no-store' });
+        const d = await r.json();
+        if (!(d.agent && d.agent.touch)) {
+          $('input-hint').textContent =
+            '板上未启用注入通道（touch-inject.so 未生效）—— 点击不会传到板子，见部署文档第 18 节';
+        }
+      } catch {}
+    };
+    sock.onerror = () => {
+      $('input-hint').textContent = '注入通道握手失败：令牌不对，或板上没装 touch-inject.so';
+    };
+    sock.onclose = () => {
+      inputSock = null;
+      if (inputOn) setInput(false);
+    };
+  }
+
+  $('btn-input').addEventListener('click', () => setInput(!inputOn));
+
+  canvas.addEventListener('pointerdown', (ev) => {
+    if (!inputOn) return;
+    ev.preventDefault();
+    canvas.setPointerCapture(ev.pointerId);
+    const p = toCanvas(ev);
+    flash(p.x, p.y);
+    sendInput({ t: 'down', x: p.x, y: p.y });
+  });
+
+  canvas.addEventListener('pointermove', (ev) => {
+    if (!inputOn || ev.buttons === 0) return;
+    const now = performance.now();
+    if (now - lastMove < 30) return;
+    lastMove = now;
+    const p = toCanvas(ev);
+    sendInput({ t: 'move', x: p.x, y: p.y });
+  });
+
+  const release = (ev: PointerEvent) => {
+    if (!inputOn) return;
+    if (canvas.hasPointerCapture(ev.pointerId)) canvas.releasePointerCapture(ev.pointerId);
+    sendInput({ t: 'up' });
+  };
+  canvas.addEventListener('pointerup', release);
+  canvas.addEventListener('pointercancel', release);
+  canvas.addEventListener('pointerleave', release);
+
+  // 统计单独走定时器：静止画面没有新块，也要能看出连接是活的
+  setInterval(() => {
+    if (!deskLive) return;
+    const ago = lastFrameAt ? ((performance.now() - lastFrameAt) / 1000).toFixed(1) + 's 前' : '等待首帧';
+    $('fb-stats').textContent =
+      `${fbW}×${fbH} · 已收 ${(recvBytes / 1024).toFixed(0)} KB · ${blocks} 块 · 最近更新 ${ago}`;
+  }, 1000);
+
+  function closeDesktop() {
+    if (deskSock) {
+      try {
+        deskSock.close();
+      } catch {}
+      deskSock = null;
+    }
+  }
+
+  /* ---------------- 指令级遥控 ----------------
+   * 不是模拟触摸（那条路时灵时不灵），而是让 agent 直接 exec 板上的应用。
+   * 代价：应用退出后 systemui 不会重绘，必须点「回桌面」重启一次 GUI（约 2 秒）。
+   */
+  let appsLoaded = false;
+
+  async function ctl(action: string, label: string) {
+    if (!token) {
+      setState('err', '先填令牌');
+      return;
+    }
+    const hint = $('ctl-hint');
+    hint.textContent = action === 'desk' ? '回桌面…' : `启动${label}…`;
+    try {
+      const r = await fetch(`${AGENT}/api/ctl?a=${encodeURIComponent(action)}`, {
+        headers: { 'X-Board-Token': token },
+        cache: 'no-store'
+      });
+      const d = await r.json();
+      hint.textContent = d.ok
+        ? action === 'desk'
+          ? '已回桌面'
+          : `已启动${label}`
+        : `失败：${d.msg || r.status}`;
+    } catch {
+      hint.textContent = '请求失败';
+    }
+  }
+
+  async function loadApps() {
+    if (appsLoaded || !token) return;
+    try {
+      const r = await fetch(`${AGENT}/api/apps`, {
+        headers: { 'X-Board-Token': token },
+        cache: 'no-store'
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      const bar = $('apps-bar');
+      const deskBtn = $('btn-desk');
+      (d.apps || []).forEach((a: { id: string; name: string }) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = a.name;
+        b.addEventListener('click', () => ctl('app:' + a.id, a.name));
+        bar.insertBefore(b, deskBtn);
+      });
+      appsLoaded = true;
+      $('ctl-hint').textContent = '遥控';
+    } catch {
+      /* 拉不到就只留「回桌面」 */
+    }
+  }
+
+  $('btn-desk').addEventListener('click', () => ctl('desk', '桌面'));
+
+  function connectDesktop() {
+    if (!token) {
+      tokenInput.focus();
+      return;
+    }
+    closeDesktop();
+    closeShell();
+    deskOverlay.classList.remove('is-hidden');
+    setState('connecting', '正在拉取画面…');
+    recvBytes = 0;
+    blocks = 0;
+    lastFrameAt = 0;
+
+    const iv = ($('fps') as HTMLSelectElement).value;
+    const sock = new WebSocket(wsUrl(`/ws/fb?i=${iv}`), ['board.v1', token]);
+    sock.binaryType = 'arraybuffer';
+    deskSock = sock;
+
+    sock.onopen = () => {
+      deskLive = true;
+      setState('ok', '已连接 · 屏幕镜像');
+      $('disconnect').removeAttribute('disabled');
+    };
+    sock.onmessage = (ev) => {
+      if (ev.data instanceof ArrayBuffer) handleFrame(ev.data);
+    };
+    sock.onclose = () => {
+      deskLive = false;
+      setState('idle', '已断开');
+      $('disconnect').setAttribute('disabled', '');
+      deskSock = null;
+    };
+    sock.onerror = () => {
+      setState('err', '握手失败');
+      $('fb-stats').textContent = '握手失败：检查 token';
+    };
+  }
+
+  $('fps').addEventListener('change', () => {
+    if (deskSock) connectDesktop();
+  });
+  $('btn-full').addEventListener('click', () => {
+    if (deskSock && deskSock.readyState === 1) deskSock.send(JSON.stringify({ t: 'full' }));
+  });
+  $('btn-shot').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.download = `board-screen-${Date.now()}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  });
+
+  setState('idle', '未连接');
+</script>
