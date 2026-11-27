@@ -1,0 +1,14 @@
+# 依赖
+node_modules/
+
+# Astro 构建缓存
+.astro/
+
+# 本工具的工作记录（不入库）
+.workbuddy/
+
+# 日志与临时文件
+*.log
+*.tar.gz
+.DS_Store
+Thumbs.db
