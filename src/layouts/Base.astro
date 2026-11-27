@@ -32,6 +32,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://imx6ull.exa
     <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" type="application/rss+xml" title={site.name} href="/rss.xml" />
+    <!-- 动效渐进增强：没有 JS 时 html 不带 .js，所有内容默认可见 -->
+    <script is:inline>document.documentElement.classList.add('js');</script>
   </head>
   <body class={bodyClass}>
     <a class="sr-only" href="#main">跳到主要内容</a>

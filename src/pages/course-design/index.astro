@@ -64,7 +64,7 @@ const plan = [
       <div class="grid-2" style="gap:56px; align-items:start;">
         <div>
           <span class="eyebrow">定位</span>
-          <h2 style="margin:14px 0 16px;">把 8 次实验的能力收进一个应用</h2>
+          <h2 style="margin:14px 0 16px;">8 次实验能力的整合</h2>
           <div class="stack-16" style="font-size:15px; color:var(--ink-3);">
             <p>
               课程实验是单点训练：点亮一盏灯、读到一帧图像、保存一个文本。课程设计要求
@@ -72,8 +72,8 @@ const plan = [
             </p>
             <p>
               技术路线沿用实验里已经验证过的部分：<strong>Qt 5.12 交叉编译 + linuxfb 平台插件</strong>，
-              硬件访问一律走 sysfs 与 V4L2，不额外引入依赖。这样做的代价是功能朴素，
-              好处是在 512MB 的板子上跑得动，且每一层都能讲清楚。
+              硬件访问统一经 sysfs 与 V4L2，不引入额外依赖。代价是功能相对基础，
+              优点是在 512MB 的板子上可运行，且各层职责清晰。
             </p>
           </div>
         </div>
@@ -97,8 +97,8 @@ const plan = [
     <div class="container">
       <SectionHead
         eyebrow="模块规划"
-        title="四个模块，全部复用课程实验"
-        desc="每个模块都能对应到某次实验，避免为了做设计而引入没验证过的技术。"
+        title="四个模块，均复用课程实验成果"
+        desc="每个模块对应一次课程实验，不引入未经验证的技术。"
       />
       <div class="cards cards--4">
         {modules.map((m) => (

@@ -4,79 +4,72 @@ import SectionHead from '../../components/SectionHead.astro';
 import { snapshot, site } from '../../data/site';
 
 const fields = [
-  ['host', '主机名', snapshot.host, 'hostname'],
-  ['kernel', '内核版本', snapshot.kernel, 'uname -r'],
+  ['host', '主机名', snapshot.host, 'uname().nodename'],
+  ['kernel', '内核版本', snapshot.kernel, 'uname().release'],
   ['uptime', '连续运行', snapshot.uptime, '/proc/uptime'],
+  ['cpu', 'CPU / 负载', '—', '/proc/stat · /proc/loadavg'],
+  ['temp', 'SoC 温度', '—', '/sys/class/thermal/thermal_zone0'],
   ['mem', '内存占用', snapshot.mem, '/proc/meminfo'],
-  ['nginx', 'Nginx 进程', snapshot.nginx, 'nginx -v + ps'],
-  ['tunnel', '隧道状态', snapshot.tunnel, 'frpc 状态'],
-  ['tls', '证书与协议', snapshot.tls, '公网服务器 Nginx'],
-  ['collectedAt', '采集时间', snapshot.collectedAt, 'date']
+  ['disk', '根分区', '—', 'statvfs("/")'],
+  ['nginx', 'Nginx 进程', snapshot.nginx, '/proc/*/comm'],
+  ['tunnel', '隧道状态', snapshot.tunnel, '/var/lib/frpc/frpc.log'],
+  ['procs', '进程数', '—', '/proc 目录计数'],
+  ['net', '网卡流量', '—', '/proc/net/dev'],
+  ['collectedAt', '采集时间', snapshot.collectedAt, 'time.strftime']
 ];
 
-const collector = `#!/bin/sh
-# /usr/local/bin/status-collector.sh
-# 由 systemd timer 每 10 秒执行一次，原子写出 status.json
-OUT=/var/www/site/status.json
-TMP="$OUT.new"
+const snippet = `# board-agent.py · /api/status 的核心（节选）
+def collect_status():
+    up = float(open('/proc/uptime').read().split()[0])
+    mem = {}                       # MemTotal / MemAvailable 全是 kB
+    for line in open('/proc/meminfo'):
+        k, _, v = line.partition(':')
+        mem[k] = int(v.split()[0])
 
-UP=$(cut -d. -f1 /proc/uptime)
-D=$((UP / 86400))
-H=$(((UP % 86400) / 3600))
-M=$(((UP % 3600) / 60))
+    used = mem['MemTotal'] - mem['MemAvailable']
+    total_proc, names = scan_proc()        # 扫 /proc，顺便数 nginx / frpc
 
-MEM_TOTAL=$(awk '/MemTotal/     {printf "%d", $2/1024}' /proc/meminfo)
-MEM_AVAIL=$(awk '/MemAvailable/ {printf "%d", $2/1024}' /proc/meminfo)
-MEM_USED=$((MEM_TOTAL - MEM_AVAIL))
+    return {
+        'uptime': int(up),
+        'uptime_h': fmt_uptime(up),
+        'load': loadavg(),
+        'cpu': cpu_percent(),              # /proc/stat 两次采样的差值
+        'temp': read('/sys/class/thermal/thermal_zone0/temp') / 1000.0,
+        'mem': {'total': mem['MemTotal'] // 1024,
+                'used': used // 1024,
+                'pct': round(100.0 * used / mem['MemTotal'], 1)},
+        'disk': statvfs_root(),
+        'net': net_bytes('eth0'),
+        'nginx': {'running': names.get('nginx', 0),
+                  'workers': names.get('nginx', 0) - 1},
+        'tunnel': tunnel_state(names),     # 读 frpc.log 最后几行判断
+        'procs': total_proc,
+        'ts': int(time.time()),
+    }`;
 
-NGX_VER=$(nginx -v 2>&1 | sed 's#.*/##')
-NGX_RSS=$(ps -o rss= -C nginx | awk '{s+=\\$1} END {printf "%.1f", s/1024}')
-
-TUNNEL="frp · 未连接"
-if pgrep -x frpc >/dev/null 2>&1; then
-  FRP_VER=$(frpc -v 2>/dev/null | awk '{print $3}')
-  TUNNEL="frp \${FRP_VER:-?} · 已连通"
-fi
-
-cat > "$TMP" <<JSON
-{
-  "host": "$(hostname)",
-  "kernel": "$(uname -r)",
-  "uptime": "\${D}d \${H}h \${M}m",
-  "mem": "\${MEM_USED} / \${MEM_TOTAL} MB",
-  "nginx": "\${NGX_VER} · worker rss \${NGX_RSS}MB",
-  "tunnel": "\${TUNNEL}",
-  "tls": "TLS 1.3 · 公网终结",
-  "collectedAt": "$(date '+%Y-%m-%d %H:%M')"
-}
-JSON
-
-mv "$TMP" "$OUT"   # 原子替换，避免前端读到半个文件`;
-
-const timer = `# /etc/systemd/system/status-collector.service
-[Unit]
-Description=Collect board status into status.json
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/status-collector.sh
-
-# /etc/systemd/system/status-collector.timer
-[Unit]
-Description=Run status collector every 10s
-
-[Timer]
-OnBootSec=20s
-OnUnitActiveSec=10s
-
-[Install]
-WantedBy=timers.target
-
-systemctl daemon-reload
-systemctl enable --now status-collector.timer`;
+const why = [
+  {
+    t: '定时写 status.json',
+    d: '零常驻，前端只请求一个静态文件。缺点是每个周期都要写 SD 卡，而且数据永远滞后一个周期。',
+    bad: '200 字节 JSON × 每天 8640 次 = 一直在磨损同一块扇区'
+  },
+  {
+    t: 'CGI 脚本',
+    d: '每来一个请求 fork 一个进程。实现简单，但一次请求就要起解释器，A7 上要几十毫秒。',
+    bad: '多客户端轮询时 CPU 会被 fork 吃掉'
+  },
+  {
+    t: '常驻 agent（本项目）',
+    d: '/proc 是内存里的文件，读一次几毫秒。响应快、不写盘，还顺手承载了 shell 与屏幕推流。',
+    bad: '常驻约 9–10MB RSS —— 这是它的代价'
+  }
+];
 ---
 
-<Base title="运行状态" description="开发板实时运行状态：内核版本、内存占用、Nginx 进程、隧道状态。数据由板上脚本每 10 秒采集。">
+<Base
+  title="运行状态"
+  description="开发板实时运行状态：内核版本、CPU 温度、内存、Nginx 进程、隧道状态。数据由板上 board-agent 从 /proc 与 /sys 现读。"
+>
   <section class="page-head">
     <div class="container">
       <div class="crumbs">
@@ -84,8 +77,10 @@ systemctl enable --now status-collector.timer`;
       </div>
       <h1>运行状态</h1>
       <p>
-        这一页回答一个朴素的问题：<strong>内容真的是这块板子发出来的吗？</strong>
-        下面的数据由板上脚本读取 <span class="mono">/proc</span> 生成，每 10 秒更新一次。
+        本页用于验证：<strong>内容是否确实由这块开发板提供。</strong>
+        下列数据由板端常驻的 <span class="mono">board-agent</span> 在每次请求时
+        从 <span class="mono">/proc</span> 与 <span class="mono">/sys</span> 实时读取，
+        不落盘、不缓存。
       </p>
     </div>
   </section>
@@ -93,11 +88,11 @@ systemctl enable --now status-collector.timer`;
   <section class="section">
     <div class="container">
       <div class="status-bar">
-        <span class="dot-live"></span>
-        <span>采集正常</span>
-        <span class="mono" id="st-collectedAt">{snapshot.collectedAt}</span>
+        <span class="dot-live" id="sb-dot"></span>
+        <span id="sb-text">正在读取…</span>
+        <span class="mono" id="sb-time">{snapshot.collectedAt}</span>
         <span class="status-bar__sp"></span>
-        <span class="mono">source · /var/www/site/status.json</span>
+        <span class="mono">source · /agent/api/status · 5s</span>
       </div>
 
       <div class="table-wrap">
@@ -119,8 +114,9 @@ systemctl enable --now status-collector.timer`;
       </div>
 
       <p class="small" style="margin-top:14px;">
-        若页面显示的是构建时快照（时间戳较早），说明 <span class="mono">status.json</span>
-        未就绪或采集脚本未启动——此时前端会自动回退，不影响页面可用性。
+        agent 不可达时，表格停留在构建时的快照值上，
+        <a href="/console/" style="color: var(--brand-dark);">远程控制台</a>
+        也会给出明确的失败提示，不会假装在线。
       </p>
     </div>
   </section>
@@ -129,40 +125,31 @@ systemctl enable --now status-collector.timer`;
     <div class="container">
       <SectionHead
         eyebrow="实现"
-        title="为什么要用「定时生成 JSON」而不是后端接口"
-        desc="静态站拿不到实时数据，但为了一行状态就常驻一个 Node 进程并不划算。"
+        title="为何采用常驻 agent 而非定时生成 JSON"
+        desc="静态站无法直接获取实时数据，三种方案的实现代价差异显著。"
       />
-      <div class="grid-2" style="gap:40px; align-items:start;">
-        <div class="stack-16" style="font-size:15px; color:var(--ink-3);">
-          <p>
-            三种做法：<strong>常驻 Node 接口</strong>（60–120MB 内存）、<strong>CGI 脚本</strong>（&lt;1MB，但每请求 fork 一次）、
-            <strong>定时生成静态 JSON</strong>（零常驻，前端只发一个静态请求）。
-          </p>
-          <p>
-            状态数据的时效要求是「十秒级」，不是「毫秒级」。这种情况下定时生成完全够用，
-            而且它把 <em>采集</em> 和 <em>服务</em> 彻底解耦：采集挂了，站点照常可用，只是数字不更新。
-          </p>
-          <p>
-            还有一个细节：写入用 <span class="mono">mv</span> 原子替换，
-            否则前端可能读到只写了一半的文件，JSON 解析直接失败。
-          </p>
-        </div>
-        <div>
-          <div class="code-label">/usr/local/bin/status-collector.sh</div>
-          <pre class="code"><code>{collector}</code></pre>
-        </div>
+
+      <div class="why3">
+        {why.map((w, i) => (
+          <div class="why3__item">
+            <div class="why3__n">{String(i + 1).padStart(2, '0')}</div>
+            <h4>{w.t}</h4>
+            <p>{w.d}</p>
+            <div class="why3__bad mono">{w.bad}</div>
+          </div>
+        ))}
       </div>
 
-      <div style="margin-top:28px;">
-        <div class="code-label">systemd timer · 每 10 秒触发</div>
-        <pre class="code"><code>{timer}</code></pre>
-      </div>
-
-      <p class="small" style="margin-top:18px;">
-        回首页查看状态面板 →
-        <a href="/" style="color:var(--brand-dark);">首页</a>；
-        完整架构见 <a href="/project/" style="color:var(--brand-dark);">课程项目</a>。
+      <p class="small" style="margin-top:22px;">
+        选了第三个，是因为这个项目后面还要在网页里开 shell、推屏幕 —— 那两件事必须有常驻进程
+        接 WebSocket，状态接口只是「既然进程已经在了」的顺带产物。如果只要状态数据，
+        定时写 JSON 更省内存。
       </p>
+
+      <div style="margin-top:30px;">
+        <div class="code-label">board-agent.py · 状态采集（节选）</div>
+        <pre class="code"><code>{snippet}</code></pre>
+      </div>
     </div>
   </section>
 </Base>
@@ -186,6 +173,10 @@ systemctl enable --now status-collector.timer`;
   .status-bar .mono {
     font-size: 12px;
     color: var(--muted);
+  }
+  .dot-live.is-off {
+    background: var(--muted);
+    box-shadow: 0 0 0 3px rgba(144, 144, 144, 0.16);
   }
   .table-wrap {
     overflow-x: auto;
@@ -219,6 +210,47 @@ systemctl enable --now status-collector.timer`;
     color: var(--ink);
     font-weight: 600;
   }
+  .tbl .muted {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .why3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .why3__item {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 20px;
+  }
+  .why3__n {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--brand);
+    margin-bottom: 8px;
+  }
+  .why3__item h4 {
+    font-size: 14.5px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .why3__item p {
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--ink-3);
+  }
+  .why3__bad {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
   .code {
     background: var(--navy);
     color: #dbe3ec;
@@ -239,16 +271,49 @@ systemctl enable --now status-collector.timer`;
     color: var(--muted);
     margin-bottom: 8px;
   }
+
+  @media (max-width: 860px) {
+    .why3 {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 
 <script is:inline>
-  fetch('/status.json', { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : Promise.reject()))
-    .then((d) => {
-      Object.keys(d).forEach((k) => {
-        const el = document.getElementById('st-' + k);
-        if (el) el.textContent = d[k];
-      });
-    })
-    .catch(() => {});
+  (function () {
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function setText(id, v) {
+      var el = document.getElementById(id);
+      if (el && v != null && v !== '') el.textContent = v;
+    }
+    function tick() {
+      fetch('/agent/api/status', { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (d) {
+          setText('sb-text', '在线 · ' + d.host + ' · ' + d.arch);
+          document.getElementById('sb-dot').className = 'dot-live';
+          setText('st-host', d.host);
+          setText('st-kernel', d.kernel);
+          setText('st-uptime', d.uptime_h);
+          setText('st-cpu', (d.cpu == null ? '—' : d.cpu + '%') +
+            ' · ' + d.load.map(function (v) { return v.toFixed(2); }).join(' / '));
+          setText('st-temp', d.temp == null ? '—' : d.temp + ' °C');
+          setText('st-mem', d.mem.used + ' / ' + d.mem.total + ' MB · ' + d.mem.pct + '%');
+          setText('st-disk', d.disk.total + ' MB · 已用 ' + d.disk.pct + '%');
+          setText('st-nginx', 'nginx ' + d.nginx.ver + ' · ' + d.nginx.workers + ' worker');
+          setText('st-tunnel', d.tunnel.up ? 'frp 0.58 · 已连通' : (d.tunnel.state || '未连通'));
+          setText('st-procs', d.procs + ' 个');
+          setText('st-net', '↑ ' + (d.net.tx / 1048576).toFixed(1) + ' MB · ↓ ' +
+            (d.net.rx / 1048576).toFixed(1) + ' MB');
+          setText('st-collectedAt', d.time);
+          setText('sb-time', d.time);
+        })
+        .catch(function () {
+          document.getElementById('sb-dot').className = 'dot-live is-off';
+          setText('sb-text', '板端不可达 · 显示构建时快照');
+        });
+    }
+    tick();
+    setInterval(tick, 5000);
+  })();
 </script>

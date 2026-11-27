@@ -14,8 +14,8 @@ const pins = [
 
 const stack = [
   { l: '应用层', v: '静态站点（HTML/CSS）· Qt 课程设计', c: '#fff' },
-  { l: '服务层', v: 'Nginx 1.14 · frpc 0.58', c: '#fff5f0' },
-  { l: '文件系统', v: 'ext4 rootfs · SD / eMMC', c: '#fff' },
+  { l: '服务层', v: 'Nginx 1.8.1 · frpc 0.58 · board-agent', c: '#fff5f0' },
+  { l: '文件系统', v: 'ext3 rootfs（mmcblk1p2, rw）· SD / eMMC', c: '#fff' },
   { l: '内核层', v: 'Linux 4.1.15 · led / gpio / ASoC / V4L2 / net', c: '#f4f4f5' },
   { l: '硬件层', v: 'i.MX6ULL · Cortex-A7 792MHz · 512MB DDR3', c: '#fff' }
 ];
@@ -26,7 +26,7 @@ const toolchain = [
   ['内核', 'Linux 4.1.15', 'armhf'],
   ['根文件系统', 'BusyBox + 厂商 BSP 组件', ''],
   ['图形库', 'Qt 5.12.9（ARM 版）', 'linuxfb'],
-  ['Web 服务', 'Nginx 1.14.2', 'armhf 包管理安装'],
+  ['Web 服务', 'Nginx 1.8.1', 'Yocto 镜像自带，无包管理器'],
   ['内网穿透', 'frp 0.58', '客户端常驻板载'],
   ['构建工具', 'Node 20 + Astro 5', '仅在 PC 上使用']
 ];
@@ -52,12 +52,14 @@ const tree = `embeded_web/
 ├── astro.config.mjs          站点配置（域名 / 输出模式）
 ├── package.json
 ├── deploy/
+│   ├── DEPLOY.md             部署文档：两种方案、原理、实现、排错
 │   ├── deploy.sh             构建 + rsync 到开发板
-│   ├── nginx.conf            板上 Nginx 站点配置
+│   ├── nginx.conf            板上 Nginx 站点配置 (方案 A)
 │   ├── status-collector.sh   生成 status.json 的采集脚本
-│   ├── frpc.toml             开发板 frp 客户端
-│   ├── frps.toml             公网服务器 frp 服务端
-│   └── SERVER-SETUP.md       公网服务器手动初始化步骤
+│   ├── frpc.toml             开发板 frp 客户端 (转发本机 80)
+│   ├── frpc-static.toml      开发板 frp 客户端 (静态插件)
+│   ├── frpc.init             板上 frpc 的 init 脚本
+│   └── frps.toml             公网服务器 frp 服务端
 ├── public/
 │   ├── favicon.svg
 │   └── status.json           运行状态快照（板上定时覆盖）
@@ -95,7 +97,7 @@ const tree = `embeded_web/
   <!-- 1 分层 -->
   <section class="section">
     <div class="container">
-      <SectionHead eyebrow="01 / 总览" title="五层结构，每层只解决一件事" />
+      <SectionHead eyebrow="01 / 总览" title="五层结构，各层职责单一" />
       <div class="layers">
         {stack.map((s, i) => (
           <div class="layer" style={`background:${s.c}`}>
@@ -118,7 +120,7 @@ const tree = `embeded_web/
       <SectionHead
         eyebrow="02 / 硬件"
         title="引脚分配表"
-        desc="所有外设的引脚、复用方式、电平有效性与对应驱动。改板时只改设备树，驱动不动。"
+        desc="所有外设的引脚、复用方式、电平有效性与对应驱动。更换硬件时仅需修改设备树，驱动不变。"
       />
       <div class="table-wrap">
         <table class="tbl">
@@ -151,7 +153,7 @@ const tree = `embeded_web/
       <SectionHead
         eyebrow="03 / 软件栈"
         title="工具链与版本"
-        desc="嵌入式项目里版本是硬约束：换一个 gcc 小版本，内核模块就可能加载失败。"
+        desc="嵌入式项目中版本是硬约束：gcc 小版本变化即可能导致内核模块加载失败。"
       />
       <div class="table-wrap">
         <table class="tbl">
@@ -219,7 +221,7 @@ const tree = `embeded_web/
       <SectionHead
         eyebrow="06 / 接口"
         title="status.json 数据契约"
-        desc="板上脚本每 10 秒生成一次，首页读取它刷新状态面板。字段固定，缺失则回退到构建时快照。"
+        desc="由板端 board-agent 实时读取 /proc 与 /sys 生成，首页每 2 秒轮询一次。字段固定，agent 不可达时回退到构建时快照。"
       />
       <div class="table-wrap">
         <table class="tbl">
@@ -227,19 +229,21 @@ const tree = `embeded_web/
             <tr><th>字段</th><th>来源</th><th>示例</th></tr>
           </thead>
           <tbody>
-            <tr><td class="mono">host</td><td><span class="mono">hostname</span></td><td class="mono">imx6ull-alpha</td></tr>
+            <tr><td class="mono">host</td><td><span class="mono">hostname</span></td><td class="mono">ATK-IMX6U</td></tr>
             <tr><td class="mono">kernel</td><td><span class="mono">uname -r</span></td><td class="mono">4.1.15</td></tr>
-            <tr><td class="mono">uptime</td><td><span class="mono">/proc/uptime</span></td><td class="mono">6d 04:12</td></tr>
-            <tr><td class="mono">mem</td><td><span class="mono">/proc/meminfo</span></td><td class="mono">58 / 512 MB</td></tr>
-            <tr><td class="mono">nginx</td><td><span class="mono">nginx -v</span> + ps</td><td class="mono">1.14.2 · 1 worker</td></tr>
+            <tr><td class="mono">uptime</td><td><span class="mono">/proc/uptime</span></td><td class="mono">1d 02:31</td></tr>
+            <tr><td class="mono">mem</td><td><span class="mono">/proc/meminfo</span></td><td class="mono">156 / 494 MB</td></tr>
+            <tr><td class="mono">nginx</td><td><span class="mono">nginx -v</span> + ps</td><td class="mono">1.8.1 · 1 worker</td></tr>
             <tr><td class="mono">tunnel</td><td>frpc 状态</td><td class="mono">frp 0.58 · 已连通</td></tr>
-            <tr><td class="mono">collectedAt</td><td>采集时间</td><td class="mono">2026-11-08 15:40</td></tr>
+            <tr><td class="mono">collectedAt</td><td>采集时间</td><td class="mono">2026-11-24 01:56</td></tr>
           </tbody>
         </table>
       </div>
       <p class="small" style="margin-top:14px;">
-        采集脚本见 <a href="/source/">源码与产物</a> 中的
-        <span class="mono">deploy/status-collector.sh</span>。
+        采集代码见 <a href="/source/">源码与产物</a> 中的
+        <span class="mono">deploy/board-agent.py</span>（<span class="mono">collect_status()</span>），
+        由板上 nginx 以 <span class="mono">/agent/api/status</span> 反代出来；
+        字段含义与实时值见 <a href="/status/">运行状态</a>。
       </p>
     </div>
   </section>

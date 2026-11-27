@@ -50,7 +50,7 @@ const groups = [
       </div>
       <h1>演示素材</h1>
       <p>
-        页面和数据都能造假，照片和视频不能。这一板块用来存放项目真实运行时的影像证据：
+        页面与数据可以伪造，影像不能。本板块存放项目运行时的影像证据：
         接线、上电、串口日志、页面加载、资源占用。
       </p>
       <div class="card__tags" style="margin-top:16px;">
@@ -64,8 +64,8 @@ const groups = [
     <div class="container">
       <SectionHead
         eyebrow="清单"
-        title="需要采集的六组素材"
-        desc="占位说明已写好，拍到素材后直接把对应格子替换成图片或视频嵌入。"
+        title="六组待采集素材"
+        desc="占位说明已就位，采集完成后替换为图片或视频。"
       />
       <div class="cards">
         {groups.map((g) => (
@@ -90,7 +90,7 @@ const groups = [
       <div class="note">
         <strong>采集建议</strong>
         <ul>
-          <li>照片统一 4:3 横构图、光线均匀；拍摄时把串口线和网线拍进画面，能体现「真的在跑」。</li>
+          <li>照片统一 4:3 横构图、光线均匀；拍摄时将串口线与网线纳入画面，以佐证实际运行状态。</li>
           <li>视频不超过 90 秒：上电 → 串口滚屏 → 浏览器输入域名 → 页面出现，一镜到底不要剪辑。</li>
           <li>资源占用截图保留时间戳与进程名，<span class="mono">top</span> 里能看到 nginx 的 RSS 最有说服力。</li>
           <li>所有素材压缩后放进 <span class="mono">public/gallery/</span>，用相对路径引用，避免外链失效。</li>

@@ -360,13 +360,50 @@ h3,
 }
 .hero h1 {
   margin: 18px 0 20px;
+  /* 中文标题比原来的短句长，压一档字号，避免第二行挤到终端卡片上 */
+  font-size: clamp(27px, 3.7vw, 46px);
+  line-height: 1.2;
 }
 .hero h1 em {
   font-style: normal;
   color: var(--brand);
 }
 .hero__lead {
-  max-width: 30em;
+  max-width: 32em;
+}
+
+/* 实现路径：一串带描边的标签，比写一大段话更容易扫 */
+.hero__path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 6px;
+  margin-top: 20px;
+}
+.hero__path span {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.hero__path i {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--brand);
+  opacity: 0.65;
+}
+.hero__note {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.hero__note a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .hero__cta {
   display: flex;

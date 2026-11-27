@@ -50,7 +50,7 @@ const boardNginx = `server {
     tcp_nopush on;
 
     gzip off;          # 关掉运行时压缩
-    gzip_static on;    # 直接发构建时生成的 .gz
+    gzip_static on;    # 直接发送构建时生成的 .gz
 
     access_log off;    # 减少 SD 卡写入
 
@@ -93,22 +93,22 @@ const keyPoints = [
   {
     icon: 'check',
     t: 'HTTPS 只在公网服务器上终结',
-    d: '板子只出 HTTP。证书私钥不放在随手会被拔电的开发板上，也避开了 ACME 校验需要 80 端口对外的矛盾。'
+    d: '板端仅提供 HTTP。证书私钥不置于随时可能断电的开发板上，同时避开 ACME 校验要求 80 端口对外的矛盾。'
   },
   {
     icon: 'check',
-    t: 'frps 的回连端口只绑 127.0.0.1',
-    d: 'proxyBindAddr 必须设成本机，否则任何人都能绕过 Nginx 直连 8080，甚至把服务当跳板。'
+    t: 'frps 回连端口仅绑定 127.0.0.1',
+    d: 'proxyBindAddr 必须设为本机地址，否则可绕过 Nginx 直连 8080，将服务用作跳板。'
   },
   {
     icon: 'check',
-    t: '不在板子上构建',
-    d: 'Node 在 armhf 上构建一个站点峰值内存超过 500MB，512MB 的板子必然 OOM。构建一律在 PC 完成。'
+    t: '构建不在板端执行',
+    d: 'Node 在 armhf 上构建站点的峰值内存超过 500MB，512MB 的开发板必然 OOM，构建一律在 PC 完成。'
   },
   {
     icon: 'check',
-    t: '板上关日志、开 gzip_static',
-    d: 'access_log off 减少 SD 卡写入；预压缩把单请求 CPU 从 4.1ms 压到 0.4ms，吞吐提升约 80%。'
+    t: '关闭访问日志，启用 gzip_static',
+    d: 'access_log off 减少 SD 卡写入；预压缩将单请求 CPU 从 4.1ms 降至 0.4ms，吞吐提升约 80%。'
   }
 ];
 ---
@@ -119,11 +119,10 @@ const keyPoints = [
       <div class="crumbs">
         <a href="/">首页</a><span>/</span><span>课程项目</span>
       </div>
-      <h1>课程项目 · 用开发板做一个网站</h1>
+      <h1>课程项目 · 开发板建站</h1>
       <p>
-        项目要求：在 i.MX6ULL 开发板上部署一个网站，通过没有公网 IP 的校园网出口，
-        发布到自己的域名上。本站就是这个项目的交付物——你正在浏览的页面，
-        此刻由一块 512MB 内存的开发板提供。
+        项目要求：在 i.MX6ULL 开发板上部署网站，经由无公网 IP 的校园网出口发布到自有域名。
+        本站即该项目的交付物——当前浏览的页面由一块 512MB 内存的开发板提供。
       </p>
       <div class="card__tags" style="margin-top:16px;">
         <span class="badge badge--ok">已上线</span>
@@ -140,21 +139,21 @@ const keyPoints = [
     <div class="container grid-2" style="gap:56px; align-items:start;">
       <div>
         <span class="eyebrow">项目概述</span>
-        <h2 style="margin:14px 0 18px;">约束很硬：512MB、单核、没有公网 IP</h2>
+        <h2 style="margin:14px 0 18px;">约束条件：512MB 内存、单核、无公网 IP</h2>
         <div class="stack-16" style="font-size:15px; color:var(--ink-3);">
           <p>
-            第一反应是「装个 Node 跑 SSR」。算一下账就放弃了：在 armhf 上跑一个 Node 服务，
-            常驻内存 60–120MB，占掉 512MB 的五分之一，而这五分之一换来的能力——
-            服务端渲染——这个站点根本用不上。内容全是 Markdown，构建时就能确定。
+            最初方案是部署 Node 承担 SSR，核算后放弃：armhf 上单个 Node 服务常驻内存
+            60–120MB，占 512MB 的五分之一，而这一部分内存换来的服务端渲染能力本站并不需要——
+            内容全部是 Markdown，构建阶段即可确定。
           </p>
           <p>
-            于是架构定成：<strong>PC 上构建，开发板只做静态文件服务，公网服务器只做证书与入口。</strong>
-            最终板上常驻的只有一个 Nginx worker，3.2MB。
+            架构据此确定：<strong>构建在 PC 完成，开发板仅承担静态文件服务，公网服务器仅承担证书终止与入口。</strong>
+            板上常驻进程只有一个 Nginx worker，占用 3.2MB。
           </p>
           <p>
-            第二个难题是网络。实验室出口是校园网 NAT，没有公网 IP，也没法做端口映射。
-            用 frp 从内侧建立反向隧道：板子主动外连服务器，服务器收到请求后顺着这条已有
-            连接转发回来。因为出站连接本来就是允许的，NAT 拦不住。
+            第二个约束来自网络。实验室出口为校园网 NAT，既无公网 IP，也无法配置端口映射。
+            方案是用 frp 从内网侧建立反向隧道：板端主动外连服务器，服务器收到公网请求后
+            沿这条已建立的连接回送。出站连接默认放行，NAT 不构成阻碍。
           </p>
         </div>
       </div>
@@ -181,8 +180,8 @@ const keyPoints = [
     <div class="container">
       <SectionHead
         eyebrow="架构"
-        title="一次请求要经过六跳"
-        desc="每一跳的职责都很单一。出问题时可以逐跳验证：先看 DNS，再看 443，再看隧道是否连通，最后才怀疑板子。"
+        title="单次请求经过六跳"
+        desc="各跳职责单一，故障可逐跳验证：DNS → 443 → 隧道 → 板端。"
       />
       <div class="arch-wrap">
         <div class="arch-svg"><ArchDiagram /></div>
@@ -206,8 +205,8 @@ const keyPoints = [
     <div class="container">
       <SectionHead
         eyebrow="部署流程"
-        title="从改一个 Markdown 到线上生效，四步"
-        desc="整个流程一条命令，不需要插拔 SD 卡，也不需要登录板子手工操作。"
+        title="内容更新流程，四步"
+        desc="全流程一条命令，无需插拔 SD 卡或登录板端操作。"
       />
       <div class="steps">
         {steps.map((s) => (
@@ -237,8 +236,8 @@ const keyPoints = [
     <div class="container">
       <SectionHead
         eyebrow="内网穿透"
-        title="两端配置，一进一出"
-        desc="板子侧发起连接，服务器侧决定谁可以访问。方向搞反了会一直 502。"
+        title="两端配置：发起与准入"
+        desc="板端发起连接，服务器侧控制准入；方向相反会导致持续 502。"
       />
       <div class="code-grid">
         <div>
@@ -251,7 +250,7 @@ const keyPoints = [
         </div>
       </div>
       <p class="small" style="margin-top:18px;">
-        完整推导与踩坑记录见
+        完整推导与问题记录见
         <a href="/notes/02-frp-tunnel/" style="color:var(--brand-dark);">《内网穿透方案对比与 frp 落地》</a>，
         性能数据见
         <a href="/notes/04-performance/" style="color:var(--brand-dark);">《性能实测》</a>。
@@ -264,8 +263,8 @@ const keyPoints = [
     <div class="container">
       <SectionHead
         eyebrow="运行证明"
-        title="此刻板子的状态"
-        desc="一组由板上脚本定时采集的指标，用于证明页面确实由开发板提供。"
+        title="板端当前状态"
+        desc="由板端定时采集的指标，用于验证页面确由开发板提供。"
         href="/status/"
         linkText="查看状态说明"
       />

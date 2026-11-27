@@ -32,6 +32,14 @@ const entries = [
     badge: null
   },
   {
+    href: '/console/',
+    icon: 'terminal',
+    title: '远程控制台',
+    desc: '通过浏览器访问板端 Shell 与屏幕镜像，均走 WebSocket。',
+    foot: 'WebSocket · 实时',
+    badge: 'NEW'
+  },
+  {
     href: '/course-design/',
     icon: 'code',
     title: '课程设计',
@@ -49,7 +57,7 @@ const entries = [
   },
   {
     href: '/notes/',
-    icon: 'terminal',
+    icon: 'chart',
     title: '技术选型',
     desc: '为什么不用 Node SSR、frp 怎么落地、Astro 与 Vue 差在哪。',
     foot: `${notes.length} 篇分析`,
@@ -64,14 +72,6 @@ const entries = [
     badge: null
   },
   {
-    href: '/gallery/',
-    icon: 'image',
-    title: '演示素材',
-    desc: '实物照片、上电视频、串口日志与 top 截图，用于答辩演示。',
-    foot: '待补充',
-    badge: '预留'
-  },
-  {
     href: '/about/',
     icon: 'cpu',
     title: '关于本站',
@@ -83,9 +83,16 @@ const entries = [
 
 const hops = [
   { k: '构建', v: 'PC 上 npm run build', d: 'Astro 把 Markdown 与组件渲染成纯 HTML / CSS' },
-  { k: '分发', v: 'rsync → 开发板', d: '只上传 dist/ 目录，不在板子上构建' },
+  { k: '分发', v: 'tar → 开发板 /var/www/site', d: '只上传 dist/ 目录，不在板子上构建' },
   { k: '服务', v: 'Nginx :80', d: 'sendfile 零拷贝、gzip_static 预压缩' },
   { k: '出口', v: 'frpc → frps → 域名', d: '板子主动外连，TLS 在公网服务器终结' }
+];
+
+const charts = [
+  { id: 'temp', label: 'CPU 温度', unit: '°C', max: 80, color: 'var(--brand)' },
+  { id: 'load', label: '1 分钟负载', unit: '', max: 2, color: '#5b9cf8' },
+  { id: 'mem', label: '内存占用', unit: '%', max: 100, color: '#12b76a' },
+  { id: 'net', label: '网络吞吐', unit: 'KB/s', max: 64, color: '#c77dff' }
 ];
 ---
 
@@ -93,18 +100,31 @@ const hops = [
   <!-- ============ Hero ============ -->
   <section class="hero">
     <div class="container hero__grid">
-      <div>
+      <div class="reveal">
         <span class="eyebrow">嵌入式系统 · 课程项目</span>
-        <h1>把一个网站<br />跑在 <em>512MB</em> 的开发板上</h1>
+        <h1>基于 <em>frp</em> 的<br />嵌入式开发板网络服务器</h1>
         <p class="lead hero__lead">
-          i.MX6ULL、单核 Cortex-A7、没有公网 IP。这个站点从零搭建：8 个课程实验、
-          1 个 Qt 课程设计、1 个 frp 内网穿透建站项目，全部归档在这里，并且它本身
-          就跑在那块板子上。
+          i.MX6ULL（单核 Cortex-A7 / 512MB）跑 Yocto Linux，板上 nginx 1.8.1 只负责静态文件；
+          板子没有公网 IP，用 frp 把 80 端口反向映射到公网服务器，TLS 在服务器侧终止。
+        </p>
+
+        <div class="hero__path" aria-label="实现路径">
+          <span>Astro 构建</span><i>→</i>
+          <span>gzip 预压缩</span><i>→</i>
+          <span>tar 下发</span><i>→</i>
+          <span>板上 nginx</span><i>→</i>
+          <span>frp 隧道</span><i>→</i>
+          <span>公网 HTTPS</span>
+        </div>
+
+        <p class="hero__note">
+          8 个课程实验 · 1 个 Qt 课程设计 · 1 个 frp 建站项目，全部归档在本站；实现细节见
+          <a href={site.github}>GitHub 仓库</a>。
         </p>
 
         <div class="hero__cta">
-          <a class="btn btn--primary" href="/lab/">浏览实验日志</a>
-          <a class="btn btn--ghost" href="/project/">查看课程项目</a>
+          <a class="btn btn--primary" href="/console/">打开远程控制台</a>
+          <a class="btn btn--ghost" href="/lab/">浏览实验日志</a>
         </div>
 
         <div class="hero__meta">
@@ -115,10 +135,11 @@ const hops = [
         </div>
       </div>
 
-      <div class="term" aria-label="开发板运行状态">
+      <div class="term reveal" id="hero-term" aria-label="开发板实时运行状态">
         <div class="term__bar">
           <span class="term__dots"><i></i><i></i><i></i></span>
           <span class="term__title">root@{snapshot.host}: ~</span>
+          <span class="term__live" id="live-chip"><i></i><span id="live-text">连接中…</span></span>
         </div>
         <div class="term__body">
           <div class="term__row">
@@ -137,6 +158,11 @@ const hops = [
             <span class="term__k">memory</span>
             <span class="term__v" id="st-mem">{snapshot.mem}</span>
           </div>
+          <div class="term__spark"><i id="mem-fill" style="width: 31%"></i></div>
+          <div class="term__row">
+            <span class="term__k">load / temp</span>
+            <span class="term__v" id="st-load">0.18 · 48.9°C</span>
+          </div>
           <div class="term__row">
             <span class="term__k">nginx</span>
             <span class="term__v" id="st-nginx">{snapshot.nginx}</span>
@@ -147,7 +173,7 @@ const hops = [
           </div>
         </div>
         <div class="term__foot">
-          <span>status.json · 10s</span>
+          <span id="sample-note">每 2s 采样 <b id="s-count">0</b> 次</span>
           <span id="st-time">{snapshot.collectedAt}</span>
         </div>
       </div>
@@ -157,14 +183,85 @@ const hops = [
   <!-- ============ 指标 ============ -->
   <section class="section section--tight">
     <div class="container">
-      <div class="metrics">
+      <div class="metrics reveal" id="metrics">
         {metrics.map((m) => (
           <div class="metrics__item">
-            <div class="metrics__num">{m.num}<small>{m.unit}</small></div>
+            <div class="metrics__num">
+              <span class="num" data-to={m.num}>{m.num}</span><small>{m.unit}</small>
+            </div>
             <div class="metrics__label">{m.label}</div>
           </div>
         ))}
       </div>
+    </div>
+  </section>
+
+  <!-- ============ 实时遥测 ============ -->
+  <section class="section section--soft" id="telemetry">
+    <div class="container">
+      <SectionHead
+        eyebrow="实时遥测"
+        title="板端运行数据"
+        desc="以下数值均由 board-agent 从板上 /proc 与 /sys 直接读取；agent 仅监听回环地址，由 nginx 以 /agent/ 前缀反向代理。页面每 2 秒采样一次，曲线趋平反映实际负载处于低位。"
+        href="/console/"
+        linkText="打开远程控制台"
+      />
+
+      <div class="tele">
+        {charts.map((c) => (
+          <div class="tele__card reveal" data-chart={c.id}>
+            <div class="tele__head">
+              <span class="tele__label">{c.label}</span>
+              <span class="tele__val">
+                <b id={`v-${c.id}`}>—</b><i>{c.unit}</i>
+              </span>
+            </div>
+            <svg class="tele__svg" viewBox="0 0 240 64" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id={`g-${c.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color={c.color} stop-opacity="0.22" />
+                  <stop offset="100%" stop-color={c.color} stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <polyline class="tele__area" id={`a-${c.id}`} fill={`url(#g-${c.id})`} points="" />
+              <polyline class="tele__line" id={`p-${c.id}`} stroke={c.color} fill="none" points="" />
+              <circle class="tele__dot" id={`d-${c.id}`} r="2.6" fill={c.color} cx="-10" cy="-10" />
+            </svg>
+            <div class="tele__foot">
+              <span>min <b id={`min-${c.id}`}>—</b></span>
+              <span>max <b id={`max-${c.id}`}>—</b></span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div class="gauges reveal">
+        <div class="gauge">
+          <div class="gauge__top">
+            <span>内存</span>
+            <span class="mono" id="g-mem-text">—</span>
+          </div>
+          <div class="gauge__track"><i id="g-mem" style="width: 0%"></i></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge__top">
+            <span>根分区</span>
+            <span class="mono" id="g-disk-text">—</span>
+          </div>
+          <div class="gauge__track"><i id="g-disk" style="width: 0%"></i></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge__top">
+            <span>进程 / 网络</span>
+            <span class="mono" id="g-proc-text">—</span>
+          </div>
+          <div class="gauge__foot" id="g-net-text">—</div>
+        </div>
+      </div>
+
+      <p class="tele__src mono">
+        数据源 <b>/agent/api/status</b> · 采集点 <b>board-agent.py</b> · 板端负载 <b id="cpu-pct">—</b>
+      </p>
     </div>
   </section>
 
@@ -173,18 +270,18 @@ const hops = [
     <div class="container">
       <SectionHead
         eyebrow="站内导航"
-        title="七个板块，从课程实验到站点上线"
-        desc="内容按课程实验、系统设计、课程项目、技术复盘四个阶段组织；各板块独立成篇，并在文中相互引用。"
+        title="八个板块，四个阶段"
+        desc="内容按课程实验、系统设计、课程项目、技术复盘四个阶段组织；各板块独立成篇，正文之间相互引用。"
       />
       <div class="cards cards--4">
         {entries.map((e) => (
-          <a class="card" href={e.href}>
+          <a class="card reveal" href={e.href}>
             <span class="card__icon"><Icon name={e.icon} size={18} /></span>
             <h3>{e.title}</h3>
             <p>{e.desc}</p>
             <div class="card__foot">
               <span class="mono">{e.foot}</span>
-              {e.badge && <span class="badge badge--wait">{e.badge}</span>}
+              {e.badge && <span class={`badge ${e.badge === 'NEW' ? 'badge--new' : 'badge--wait'}`}>{e.badge}</span>}
             </div>
           </a>
         ))}
@@ -198,7 +295,7 @@ const hops = [
       <SectionHead
         eyebrow="实验日志"
         title="八次实验，从点亮一颗 LED 到采集一帧图像"
-        desc="每次实验都记录了目的、原理、关键代码和真实的报错排查过程。"
+        desc="各篇记录实验目的、原理、关键代码与报错排查过程。"
         href="/lab/"
         linkText="查看全部 8 篇"
       />
@@ -223,13 +320,12 @@ const hops = [
   <!-- ============ 架构 ============ -->
   <section class="section">
     <div class="container grid-2" style="align-items:start; gap:56px;">
-      <div>
+      <div class="reveal">
         <span class="eyebrow">运行架构</span>
-        <h2 style="margin:14px 0 16px;">PC 上构建，板子上服务，服务器做出口</h2>
+        <h2 style="margin:14px 0 16px;">构建、分发、服务、出口</h2>
         <p class="muted" style="font-size:15px;">
-          整条链路只有四跳，每一跳的职责都很单一：构建在性能足够的机器上完成，
-          开发板只负责把文件发出去，公网服务器只负责证书与入口。任何一跳出问题，
-          都能单独定位。
+          整条链路共四跳，各跳职责单一：构建在性能充足的机器上完成，开发板仅承担静态文件
+          服务与隧道发起，公网服务器仅承担 TLS 终止与流量入口。任一环节异常均可独立定位。
         </p>
 
         <div class="hops">
@@ -245,10 +341,11 @@ const hops = [
               </div>
             </div>
           ))}
+          <div class="hop__flow" aria-hidden="true"><i></i></div>
         </div>
       </div>
 
-      <div class="card" style="padding:28px;">
+      <div class="card reveal" style="padding:28px;">
         <div class="card__num">DESIGN GOALS</div>
         <h3 style="margin-bottom:18px;">设计目标达成情况</h3>
         <ul class="goals">
@@ -256,7 +353,7 @@ const hops = [
           <li><Icon name="check" size={15} /><span>框架 JS</span><b>0 KB</b></li>
           <li><Icon name="check" size={15} /><span>Nginx 常驻内存</span><b>3.2 MB</b></li>
           <li><Icon name="check" size={15} /><span>局域网 TTFB</span><b>3.2 ms</b></li>
-          <li><Icon name="check" size={15} /><span>域名 + HTTPS 可访问</span><b>已上线</b></li>
+          <li><Icon name="check" size={15} /><span>浏览器里操作板子</span><b>WebSocket</b></li>
         </ul>
         <a class="link-arrow" href="/notes/04-performance/" style="margin-top:22px;">
           查看完整实测数据<span aria-hidden="true">→</span>
@@ -268,12 +365,13 @@ const hops = [
   <!-- ============ CTA ============ -->
   <section class="section section--tight">
     <div class="container">
-      <div class="cta">
+      <div class="cta reveal">
         <div>
           <h3>全部源码与构建脚本都已公开</h3>
           <p class="muted" style="margin-top:8px; font-size:14px;">
-            仓库包含 8 篇实验日志的 Markdown、技术选型分析、部署脚本与 Nginx 配置，
-            clone 下来执行 <code>npm install &amp;&amp; npm run build</code> 即可复现整站。
+            仓库包含 8 篇实验日志的 Markdown 源文件、技术选型分析、部署脚本、Nginx 配置，
+            以及板端常驻的 board-agent。克隆仓库后执行
+            <code>npm install &amp;&amp; npm run build</code> 即可复现整站。
           </p>
         </div>
         <div class="cta__actions">
@@ -290,6 +388,7 @@ const hops = [
 <style>
   .hops {
     margin-top: 34px;
+    position: relative;
   }
   .hop {
     display: grid;
@@ -297,8 +396,10 @@ const hops = [
     gap: 14px;
     padding: 16px 0;
     border-top: 1px solid var(--line);
+    position: relative;
+    z-index: 1;
   }
-  .hop:last-child {
+  .hop:last-of-type {
     border-bottom: 1px solid var(--line);
   }
   .hop__n {
@@ -325,6 +426,33 @@ const hops = [
     color: var(--muted);
     margin-top: 2px;
   }
+  /* 架构链路上跑的小光点，纯 CSS */
+  .hop__flow {
+    position: absolute;
+    left: 13px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, var(--line) 12%, var(--line) 88%, transparent);
+    z-index: 0;
+  }
+  .hop__flow i {
+    position: absolute;
+    left: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--brand);
+    box-shadow: 0 0 0 4px rgba(255, 80, 0, 0.14);
+    animation: hopdot 4.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+  @keyframes hopdot {
+    0% { top: 0; opacity: 0; }
+    8% { opacity: 1; }
+    92% { opacity: 1; }
+    100% { top: calc(100% - 8px); opacity: 0; }
+  }
+
   .goals li {
     display: flex;
     align-items: center;
@@ -361,25 +489,434 @@ const hops = [
     gap: 10px;
     flex: none;
   }
+  .badge--new {
+    background: var(--brand);
+    color: #fff;
+  }
+
+  /* ---- 终端里的实时标记 ---- */
+  .term__live {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #7d8896;
+    letter-spacing: 0.02em;
+  }
+  .term__live i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #5be3a5;
+    box-shadow: 0 0 0 0 rgba(91, 227, 165, 0.6);
+    animation: pulse 2s ease-out infinite;
+  }
+  .term__live.is-off i {
+    background: #e2b93b;
+    animation: none;
+    box-shadow: none;
+  }
+  .term__live.is-err i {
+    background: #e5484d;
+    animation: none;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(91, 227, 165, 0.55); }
+    70% { box-shadow: 0 0 0 7px rgba(91, 227, 165, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(91, 227, 165, 0); }
+  }
+  .term__spark {
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    margin: -6px 0 4px 0;
+  }
+  .term__spark i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #5be3a5, #ff8a4c);
+    border-radius: 2px;
+    transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .term__v.flash {
+    animation: flashv 0.7s ease;
+  }
+  @keyframes flashv {
+    0% { color: #ffb27a; }
+    100% { color: #e6ebf1; }
+  }
+  .term__foot b {
+    color: #9fb0c0;
+    font-family: var(--mono);
+  }
+
+  /* ---- 遥测卡片 ---- */
+  .tele {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .tele__card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 16px 16px 12px;
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .tele__card:hover {
+    border-color: var(--line-2);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-2);
+  }
+  .tele__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .tele__label {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .tele__val b {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    transition: color 0.3s ease;
+  }
+  .tele__val i {
+    font-style: normal;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    margin-left: 2px;
+  }
+  .tele__svg {
+    width: 100%;
+    height: 64px;
+    margin: 10px 0 6px;
+    overflow: visible;
+  }
+  .tele__line {
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .tele__foot {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    border-top: 1px dashed var(--line);
+    padding-top: 7px;
+  }
+  .tele__foot b {
+    color: var(--ink-3);
+  }
+
+  .gauges {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-top: 14px;
+  }
+  .gauge {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 14px 16px;
+  }
+  .gauge__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 9px;
+  }
+  .gauge__top .mono {
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .gauge__track {
+    height: 6px;
+    border-radius: 4px;
+    background: var(--soft-2);
+    overflow: hidden;
+  }
+  .gauge__track i {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--brand), #ff9a5c);
+    transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .gauge:nth-child(2) .gauge__track i {
+    background: linear-gradient(90deg, #5b9cf8, #8bc4ff);
+  }
+  .gauge__foot {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .tele__src {
+    margin-top: 16px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .tele__src b {
+    color: var(--ink-3);
+    font-weight: 600;
+  }
+
+  /* ---- 滚动揭示（只有带 .js 时才隐藏，无脚本 / 打印时内容照常可见）---- */
+  .js .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .js .reveal.in {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (max-width: 980px) {
+    .tele {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .gauges {
+      grid-template-columns: 1fr;
+    }
+  }
   @media (max-width: 860px) {
     .cta {
       flex-direction: column;
       align-items: flex-start;
     }
   }
+  @media (max-width: 620px) {
+    .tele {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
+    .hop__flow i {
+      animation: none;
+      opacity: 0;
+    }
+    .term__live i {
+      animation: none;
+    }
+  }
 </style>
 
 <script is:inline>
-  // 仅一段状态刷新：请求 /status.json，失败则保留构建时的快照
-  fetch('/status.json', { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : Promise.reject()))
-    .then((d) => {
-      ['kernel', 'uptime', 'mem', 'nginx', 'tunnel'].forEach((k) => {
-        const el = document.getElementById('st-' + k);
-        if (el && d[k]) el.textContent = d[k];
-      });
-      const t = document.getElementById('st-time');
-      if (t && d.collectedAt) t.textContent = d.collectedAt;
-    })
-    .catch(() => {});
+  (function () {
+    var AGENT = '/agent';
+    var INTERVAL = 2000;
+    var SAMPLES = 40;
+    var charts = {
+      temp: { max: 80, unit: 1, color: '#ff5000' },
+      load: { max: 2, unit: 2, color: '#5b9cf8' },
+      mem: { max: 100, unit: 1, color: '#12b76a' },
+      net: { max: 64, unit: 1, color: '#c77dff' }
+    };
+    var hist = { temp: [], load: [], mem: [], net: [] };
+    var count = 0;
+    var online = true;
+    var prevNet = null;
+    var prevTs = null;
+    var uptime = null;
+    var uptimeStamp = 0;
+
+    function $(id) { return document.getElementById(id); }
+    function fmtUp(s) {
+      s = Math.floor(s);
+      var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600),
+          m = Math.floor((s % 3600) / 60), sec = s % 60;
+      var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+      var hms = pad(h) + ':' + pad(m) + ':' + pad(sec);
+      return d > 0 ? d + 'd ' + hms : hms;
+    }
+
+    /* ---- 迷你折线图 ---- */
+    function draw(key) {
+      var c = charts[key];
+      var data = hist[key];
+      var line = $('p-' + key), area = $('a-' + key), dot = $('d-' + key);
+      if (!line) return;
+      if (!data.length) return;
+      var W = 240, H = 64, n = data.length;
+      var step = W / Math.max(1, SAMPLES - 1);
+      var pts = [], min = Infinity, max = -Infinity;
+      for (var i = 0; i < n; i++) {
+        var v = data[i];
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      for (var j = 0; j < n; j++) {
+        var x = W - (n - 1 - j) * step;
+        var y = H - Math.min(1, data[j] / c.max) * (H - 6) - 3;
+        pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+      }
+      line.setAttribute('points', pts.join(' '));
+      if (area && pts.length) {
+        var x0 = pts[0].split(',')[0], x1 = pts[pts.length - 1].split(',')[0];
+        area.setAttribute('points', x0 + ',' + H + ' ' + pts.join(' ') + ' ' + x1 + ',' + H);
+      }
+      if (dot && pts.length) {
+        var last = pts[pts.length - 1].split(',');
+        dot.setAttribute('cx', last[0]);
+        dot.setAttribute('cy', last[1]);
+      }
+      var mn = $('min-' + key), mx = $('max-' + key);
+      if (mn) mn.textContent = min.toFixed(c.unit === 2 ? 2 : 1) + (key === 'mem' ? '%' : '');
+      if (mx) mx.textContent = max.toFixed(c.unit === 2 ? 2 : 1) + (key === 'mem' ? '%' : '');
+      var val = $('v-' + key);
+      if (val) val.textContent = data[n - 1].toFixed(c.unit === 2 ? 2 : 1);
+    }
+
+    function push(key, v) {
+      var a = hist[key];
+      a.push(v);
+      while (a.length > SAMPLES) a.shift();
+      draw(key);
+    }
+
+    /* ---- 主流程 ---- */
+    function apply(d) {
+      online = true;
+      count++;
+      var chip = $('live-chip'), lt = $('live-text');
+      if (chip) chip.className = 'term__live';
+      if (lt) lt.textContent = '实时 · ' + (INTERVAL / 1000) + 's';
+
+      $('st-kernel').textContent = d.kernel;
+      uptime = d.uptime;
+      uptimeStamp = Date.now();
+      $('st-uptime').textContent = fmtUp(uptime);
+      flashVal($('st-mem'), d.mem.used + ' / ' + d.mem.total + ' MB');
+      $('mem-fill').style.width = d.mem.pct + '%';
+      flashVal($('st-load'), d.load[0].toFixed(2) + ' · ' + (d.temp == null ? '—' : d.temp + '°C'));
+      $('st-nginx').textContent = 'nginx ' + d.nginx.ver + ' · ' + d.nginx.workers + ' worker';
+      var tun = d.tunnel || {};
+      $('st-tunnel').className = 'term__v';
+      $('st-tunnel').innerHTML = '<span class="' + (tun.up ? 'ok' : '') + '">frp 0.58 · ' +
+        (tun.up ? '已连通' : (tun.state || '未连通')) + '</span>';
+      $('st-time').textContent = d.time;
+      $('s-count').textContent = count;
+
+      push('temp', d.temp == null ? 0 : d.temp);
+      push('load', d.load[0]);
+      push('mem', d.mem.pct);
+
+      // 网络吞吐：两次采样的字节差 / 时间差
+      var now = Date.now();
+      if (prevNet && prevTs && d.ts > prevTs) {
+        var kbps = ((d.net.rx + d.net.tx) - prevNet) / 1024 / ((d.ts - prevTs));
+        push('net', Math.max(0, Math.round(kbps * 10) / 10));
+        $('g-net-text').textContent =
+          '↑ ' + (d.net.tx / 1048576).toFixed(1) + ' MB  ↓ ' + (d.net.rx / 1048576).toFixed(1) + ' MB · ' +
+          (Math.round(kbps * 10) / 10) + ' KB/s';
+      }
+      prevNet = d.net.rx + d.net.tx;
+      prevTs = d.ts;
+
+      $('g-mem').style.width = d.mem.pct + '%';
+      $('g-mem-text').textContent = d.mem.used + ' / ' + d.mem.total + ' MB · ' + d.mem.pct + '%';
+      $('g-disk').style.width = d.disk.pct + '%';
+      $('g-disk-text').textContent = d.disk.total + ' MB · 已用 ' + d.disk.pct + '%';
+      $('g-proc-text').textContent = d.procs + ' 个进程';
+      $('cpu-pct').textContent = (d.cpu == null ? '—' : d.cpu + '%');
+      document.body.dataset.board = 'online';
+    }
+
+    function offline(msg) {
+      online = false;
+      var chip = $('live-chip'), lt = $('live-text');
+      if (chip) chip.className = 'term__live is-' + (msg === 'err' ? 'err' : 'off');
+      if (lt) lt.textContent = msg === 'err' ? '板端不可达' : '离线快照';
+    }
+
+    function flashVal(el, text) {
+      if (!el) return;
+      if (el.textContent === text) return;
+      el.textContent = text;
+      el.classList.remove('flash');
+      void el.offsetWidth;          // 强制重排，动画才能重放
+      el.classList.add('flash');
+    }
+
+    function tick() {
+      fetch(AGENT + '/api/status', { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(apply)
+        .catch(function () { offline('err'); });
+    }
+
+    // uptime 自己走秒，不必等下一轮采样
+    setInterval(function () {
+      if (uptime != null && online) {
+        var s = uptime + (Date.now() - uptimeStamp) / 1000;
+        $('st-uptime').textContent = fmtUp(s);
+      }
+    }, 1000);
+
+    tick();
+    setInterval(tick, INTERVAL);
+
+    /* ---- 滚动揭示 ---- */
+    var items = [].slice.call(document.querySelectorAll('.reveal'));
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (es) {
+        es.forEach(function (e) {
+          if (e.isIntersecting) {
+            e.target.classList.add('in');
+            io.unobserve(e.target);
+          }
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+      items.forEach(function (el) { io.observe(el); });
+    } else {
+      items.forEach(function (el) { el.classList.add('in'); });
+    }
+
+    /* ---- 数字滚动 ---- */
+    var nums = [].slice.call(document.querySelectorAll('.num[data-to]'));
+    function countUp(el) {
+      var to = parseFloat(el.dataset.to) || 0;
+      var dec = (el.dataset.to.split('.')[1] || '').length;
+      var t0 = performance.now();
+      function step(t) {
+        var p = Math.min(1, (t - t0) / 900);
+        var e = 1 - Math.pow(1 - p, 3);
+        el.textContent = (to * e).toFixed(dec);
+        if (p < 1) requestAnimationFrame(step);
+        else el.textContent = el.dataset.to;
+      }
+      requestAnimationFrame(step);
+    }
+    if ('IntersectionObserver' in window) {
+      var io2 = new IntersectionObserver(function (es) {
+        es.forEach(function (e) {
+          if (e.isIntersecting) {
+            countUp(e.target);
+            io2.unobserve(e.target);
+          }
+        });
+      }, { threshold: 0.4 });
+      nums.forEach(function (el) { io2.observe(el); });
+    }
+  })();
 </script>

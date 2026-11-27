@@ -7,8 +7,8 @@ import { site } from '../../data/site';
 const stackRows = [
   ['构建', 'Astro 5 · 静态输出（output: "static"）', '构建时渲染，产物无服务端依赖'],
   ['样式', '原生 CSS，单文件设计系统', '不用 Tailwind，减少一层构建与体积'],
-  ['交互', '一段内联 fetch（约 0.4KB）', '只有状态刷新需要 JS'],
-  ['服务', 'Nginx 1.14（armhf）', '板上常驻 3.2MB，gzip_static'],
+  ['交互', '原生 JS，无框架', '首页约 6KB；xterm.js 只在控制台页加载'],
+  ['服务', 'Nginx 1.8.1（Yocto 自带）', '板上常驻 3.2MB，gzip_static'],
   ['穿透', 'frp 反向隧道', '板子主动外连，无需公网 IP'],
   ['TLS', 'Let\'s Encrypt + 公网 Nginx', '证书不进开发板'],
   ['内容', 'Markdown + 内容集合（content collections）', '加一篇文章 = 加一个文件']
@@ -53,16 +53,15 @@ const choices = [
       <div class="grid-2" style="gap:56px; align-items:start;">
         <div>
           <span class="eyebrow">背景</span>
-          <h2 style="margin:14px 0 16px;">为什么要把网站跑在板子上</h2>
+          <h2 style="margin:14px 0 16px;">为何要在开发板上建站</h2>
           <div class="stack-16" style="font-size:15px; color:var(--ink-3);">
             <p>
               课程要求是「在开发板上部署一个可以通过公网访问的网站」。最容易的做法是
               租一台服务器，把网页丢上去——但那样和开发板就没有关系了。
             </p>
             <p>
-              所以这个项目把约束当成设计条件：<strong>512MB 内存、单核 A7、没有公网 IP</strong>。
-              这三条限制逼着我把整个技术栈从上到下砍了一遍，最后剩下的东西很少，
-              但每一层都能解释清楚为什么在那儿。
+              本项目将约束视为设计条件：<strong>512MB 内存、单核 A7、无公网 IP</strong>。
+              三条限制要求对技术栈逐层裁剪，最终保留的组件不多，但每一层都有明确的存在理由。
             </p>
             <p>
               8 次课程实验的记录同样收录于此。站点运行所依赖的交叉编译、驱动调试、
@@ -92,7 +91,7 @@ const choices = [
 
   <section class="section section--soft">
     <div class="container">
-      <SectionHead eyebrow="技术栈" title="本站用什么搭的" desc="每一行的选择理由都写在技术选型板块里。" href="/notes/" linkText="看推导过程" />
+      <SectionHead eyebrow="技术栈" title="技术栈构成" desc="各项选择的推导过程见技术选型板块。" href="/notes/" linkText="查看推导过程" />
       <div class="table-wrap">
         <table class="tbl">
           <thead>
@@ -114,7 +113,7 @@ const choices = [
 
   <section class="section">
     <div class="container">
-      <SectionHead eyebrow="取舍" title="四个刻意的「不做」" desc="知道不做什么，比知道做什么更能说明理解了约束。" />
+      <SectionHead eyebrow="取舍" title="四项刻意不做的事" desc="在约束条件下主动放弃的功能，比功能清单更能反映设计边界。" />
       <div class="cards cards--2">
         {choices.map((c) => (
           <div class="card">
